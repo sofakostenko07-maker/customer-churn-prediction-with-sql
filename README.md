@@ -99,8 +99,7 @@ Features are designed to represent both:
 ## Long-term customer behavior
 
 Examples:
-- average purchase interval
-- purchase frequency
+- median purchase interval (for orders which were completed or at least one time was kept)
 - historical order value statistics
 - return/cancellation behavior
 - customer lifetime activity
