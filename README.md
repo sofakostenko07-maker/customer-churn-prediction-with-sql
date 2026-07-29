@@ -130,52 +130,61 @@ The prediction period is planned to be 120 days - client's activity during this 
 
 
 Planned customer segmentation:
+# Customer Churn Segmentation
 
-## Churned
-
-A customer is considered churned when:
-
-- no purchases occurred within the prediction period,
-- no meaningful browsing activity (less than 2 pages) during last 60 days was observed,
-- and historical behavior indicates that the customer was previously active
-(customer's median buying interval is smaller than prediction period)
-
-Example:
-
-A customer who usually purchases every 30-60 days but has not purchased or interacted with the platform for several months.
-
+This project defines customer engagement segments based on behavioral, transactional, and browsing activity patterns.  
+The segmentation is used to identify customers who are **Active**, **At‑Risk**, or **Churned**, enabling targeted retention strategies.
 
 ---
 
-## At-Risk
+## Churned Customers
 
-Customers are classified as at-risk when they show signs of possible future churn.
+A customer is classified as **Churned** when all of the following conditions are met:
 
-Examples:
+- **No purchases** within the prediction window (120 days).
+- **Low browsing activity** — fewer than 2 pages viewed in the last 60 days.
+- **Historically active behavior** — the customer used to purchase more frequently  
+  (their median buying interval is **shorter** than the prediction window).
 
-- browsing activity exists, but no purchases were made recently,
-- customer historically purchases more frequently than the current inactivity period,
-- significant decrease in purchase activity,
-- increasing return/cancellation behavior,
+**Interpretation:**  
+The customer used to be engaged, but has now stopped both purchasing and browsing.
 
-Example:
-
-A customer who visits the website but does not complete purchases may indicate decreasing engagement.
-
+**Example:**  
+A customer who typically buys every 30–60 days but has not interacted with the platform for several months.
 
 ---
 
-## Active
+## At‑Risk Customers
 
-Customers are considered active when they continue showing healthy engagement:
+A customer is classified as **At‑Risk** when they show early signs of declining engagement:
 
-Examples:
+- Browsing activity exists, but **no recent purchases**.
+- The customer historically purchases **more frequently** than their current inactivity period.
+- Noticeable **drop in purchase frequency**.
+- Increasing **returns or cancellations**.
 
-- recent purchases,
-- regular purchasing patterns,
-- stable order behavior,
-- meaningful browsing activity followed by orders.
+**Interpretation:**  
+The customer is still present on the platform, but their behavior indicates potential future churn.
 
+**Example:**  
+A customer who visits the website but does not complete purchases, suggesting decreasing intent.
+
+---
+
+## Active Customers
+
+A customer is classified as **Active** when they demonstrate stable and healthy engagement:
+
+- **Recent purchases** within the prediction window.
+- **Consistent buying patterns** aligned with their historical behavior.
+- **Stable order activity** without abnormal gaps.
+- **Meaningful browsing activity** that leads to purchases.
+
+**Interpretation:**  
+The customer continues to interact with the platform regularly and predictably.
+
+**Example:**  
+A customer who browses products and completes purchases in line with their usual buying cycle.
 
 ---
 
