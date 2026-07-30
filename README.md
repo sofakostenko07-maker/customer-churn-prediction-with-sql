@@ -18,7 +18,7 @@ The main goal is to simulate a realistic data science workflow:
   
 
 The project is currently **in development**.  
-The current stage focuses on completing SQL feature extraction and defining the churn target logic.
+The current stage focuses on completing SQL feature extraction and churn target.
 
 The dataset is fully synthetic and generated programmatically to simulate realistic e-commerce behavior.
 
@@ -92,7 +92,7 @@ This prevents using future information when generating historical features.
 
 # SQL Feature Engineering
 
-The current stage of the project focuses on creating customer-level behavioral features using SQL CTE pipelines.
+The current stage of the project ended in creating customer-level behavioral features using SQL CTE pipelines.
 
 Features are designed to represent both:
 
@@ -123,9 +123,9 @@ Examples:
 
 The target is designed using business-oriented rules based on customer engagement patterns.
 
-The final target definition is currently under development.
+The final target definition is ready
 
-The prediction period is planned to be 120 days - client's activity during this period (last 120 days) defines to which group he/she belongs.
+The prediction period is 120 days - client's activity during this period (last 120 days) defines to which group he/she belongs.
 
 
 Planned customer segmentation:
@@ -194,11 +194,12 @@ Completed:
 - SQL database loading
 - initial feature engineering design
 - business logic planning
+- code for feature extraction 
+- code for target extraction 
 
 In progress:
-- completing SQL feature extraction
-- creating final customer feature matrix
-- implementing target generation
+- completing SQL feature and target extraction
+
 
 Planned:
 - machine learning pipeline:
