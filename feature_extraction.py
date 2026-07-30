@@ -1,8 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-USER = "...."
-PASSWORD = "...."
+USER = "..."
+PASSWORD = "..."
 HOST = "localhost"
 DB = "churn_project"
 
@@ -155,7 +155,7 @@ return_cancel AS (
 return_cancel_ratio AS (
     SELECT
         ov.customer_id,
-        COALESCE(((rc.returned_items_total + rc.cancelled_items_total) / ov.total_orders_value), 0)
+        (rc.returned_items_total + rc.cancelled_items_total) / NULLIF(ov.total_orders_value, 0)
         AS return_cancel_ratio_lifetime
     FROM order_values ov
     JOIN return_cancel rc USING(customer_id)
@@ -170,28 +170,38 @@ account_age AS (
 
 last_successful_order AS (
     SELECT
-        ol.customer_id,
-        MAX(ol.order_date) AS last_successful_date
-    FROM order_level ol
-    JOIN item_level il USING(order_id)
-    WHERE
-        ol.status = 'Completed'
-        OR (
-            ol.status = 'Returned'
-            AND EXISTS (
-                SELECT 1
-                FROM item_level il2
-                WHERE il2.order_id = ol.order_id
-                AND il2.returned = 0
+        t.customer_id,
+        t.order_id,
+        DATEDIFF(@cut_date, t.order_date) AS last_successful_date
+    FROM (
+        SELECT
+            ol.customer_id,
+            ol.order_id,
+            ol.order_date,
+            ROW_NUMBER() OVER (
+                PARTITION BY ol.customer_id
+                ORDER BY ol.order_date DESC, ol.order_id DESC
+            ) AS rn
+        FROM order_level ol
+        WHERE
+            ol.status = 'Completed'
+            OR (
+                ol.status = 'Returned'
+                AND EXISTS (
+                    SELECT 1
+                    FROM item_level il2
+                    WHERE il2.order_id = ol.order_id
+                    AND il2.returned = 0
+                )
             )
-        )
-    GROUP BY ol.customer_id
+    ) t
+    WHERE rn = 1
 ),
 
 last_successful_stats AS (
     SELECT
         lso.customer_id,
-        DATEDIFF(@cut_date, lso.last_successful_date) AS last_suc_order_interval,
+        SUM(lso.last_successful_date) AS last_suc_order_interval ,
         SUM(CASE WHEN il.returned = 0 THEN il.quantity * il.price_at_purchase ELSE 0 END) AS last_suc_order_total,
         SUM(CASE WHEN il.returned = 0 THEN il.quantity ELSE 0 END) AS last_suc_order_items,
         SUM(CASE WHEN il.returned = 1 THEN il.quantity ELSE 0 END) AS returned_items_in_last_order,
@@ -199,16 +209,17 @@ last_successful_stats AS (
     FROM last_successful_order lso
     JOIN order_level ol
         ON ol.customer_id = lso.customer_id
-        AND ol.order_date = lso.last_successful_date
-    JOIN item_level il USING(order_id)
-    GROUP BY customer_id
+        AND ol.order_id = lso.order_id
+    JOIN item_level il 
+    ON il.order_id = lso.order_id 
+    GROUP BY lso.customer_id
 ),
 
 last_successful_ratios AS (
     SELECT
         customer_id,
-        returned_items_in_last_order / COALESCE(returned_items_in_last_order + last_suc_order_items, 0) AS items_return_ratio,
-        returned_items_total_in_last_order / COALESCE(returned_items_total_in_last_order + last_suc_order_total, 0) AS total_return_ratio
+        returned_items_in_last_order / NULLIF(returned_items_in_last_order + last_suc_order_items, 0) AS items_return_ratio,
+        returned_items_total_in_last_order / NULLIF(returned_items_total_in_last_order + last_suc_order_total, 0) AS total_return_ratio
     FROM last_successful_stats
 ),
 
@@ -227,62 +238,92 @@ full_return_orders AS (
 
 last_return_date AS (
     SELECT
-        customer_id,
-        MAX(status_date) AS return_date
-    FROM full_return_orders
-    GROUP BY customer_id
+        t.customer_id,
+        t.order_id,
+        t.status_date AS return_date
+    FROM (
+        SELECT
+            customer_id,
+            order_id,
+            status_date,
+            ROW_NUMBER() OVER (
+                PARTITION BY customer_id
+                ORDER BY status_date DESC,
+                order_id DESC
+            ) AS rn
+        FROM full_return_orders
+    ) t
+    WHERE rn = 1
 ),
 
 last_return_order AS (
     SELECT
         t.customer_id,
+        t.order_id,
         DATEDIFF(@cut_date, t.return_date) AS days_from_last_return,
         t.full_return_total
     FROM (
         SELECT
             lrd.customer_id,
+            lrd.order_id,
             lrd.return_date,
             fro.full_return_total
         FROM full_return_orders fro
-        JOIN last_return_date lrd USING(customer_id)
+        JOIN last_return_date lrd 
+        ON fro.customer_id = lrd.customer_id
+        AND fro.order_id = lrd.order_id
+       
     ) t
 ),
 
 last_return_stats AS (
     SELECT
         lro.customer_id,
-        lro.days_from_last_return,
+        SUM(lro.days_from_last_return) AS days_from_last_return,
         SUM(CASE WHEN il.returned = 1 THEN il.quantity * il.price_at_purchase ELSE 0 END) AS last_return_total,
         SUM(CASE WHEN il.returned = 1 THEN il.quantity ELSE 0 END) AS last_returned_items
     FROM order_level ol
     JOIN last_return_order lro
         ON lro.customer_id = ol.customer_id
-        AND lro.days_from_last_return = DATEDIFF(@cut_date, ol.status_date)
-    JOIN item_level il USING(order_id)
-    GROUP BY customer_id
+        AND lro.order_id = ol.order_id
+    JOIN item_level il 
+    ON il.order_id = lro.order_id 
+    GROUP BY lro.customer_id
 ),
 
 last_cancel_order AS (
     SELECT
-        customer_id,
-        MAX(status_date) AS last_cancel_date
-    FROM order_level
-    WHERE status = 'Cancelled'
-    GROUP BY customer_id
+        t.customer_id,
+        t.order_id,
+        DATEDIFF(@cut_date, t.status_date) AS days_from_last_cancel
+    FROM (
+        SELECT
+            customer_id,
+            order_id,
+            status_date,
+            ROW_NUMBER() OVER (
+                PARTITION BY customer_id
+                ORDER BY status_date DESC, order_id DESC
+            ) AS rn
+        FROM order_level
+        WHERE status = 'Cancelled'
+    ) t
+    WHERE rn = 1
 ),
 
 last_cancel_stats AS (
     SELECT
         lco.customer_id,
-        DATEDIFF(@cut_date, lco.last_cancel_date) AS days_from_last_cancel,
+        SUM(lco.days_from_last_cancel) AS days_from_last_cancel,
         SUM(il.quantity) AS last_cancel_items,
         SUM(il.quantity * il.price_at_purchase) AS last_cancel_total
     FROM order_level ol
     JOIN last_cancel_order lco
         ON lco.customer_id = ol.customer_id
-        AND lco.last_cancel_date = ol.status_date
-    JOIN item_level il USING(order_id)
-    GROUP BY customer_id
+        AND lco.order_id = ol.order_id
+    JOIN item_level il 
+    ON il.order_id = lco.order_id 
+    GROUP BY lco.customer_id
 ),
 
 last3_orders AS (
@@ -293,7 +334,7 @@ last3_orders AS (
             order_id,
             order_date,
             status,
-            ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn
+            ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) AS rn
         FROM order_level
     ) t
     WHERE rn <= 3
@@ -307,7 +348,8 @@ last3_succ_orders AS (
             ol.order_id,
             ol.order_date,
             ol.status,
-            ROW_NUMBER() OVER (PARTITION BY ol.customer_id ORDER BY ol.order_date DESC) AS rn
+            ROW_NUMBER() OVER (PARTITION BY ol.customer_id ORDER BY ol.order_date DESC, ol.order_id DESC
+            ) AS rn
         FROM order_level ol
         WHERE
             ol.status = 'Completed'
@@ -327,13 +369,14 @@ last3_succ_orders AS (
 last3_succ_orders_help_table AS (
     SELECT
         l3so.customer_id,
+        l3so.order_id,
         l3so.order_date,
         SUM(CASE WHEN il.returned = 0 THEN il.price_at_purchase * il.quantity ELSE 0 END) AS last_succ_totals,
         SUM(CASE WHEN il.returned = 1 THEN il.quantity ELSE 0 END) AS last_succ_items_returned,
         SUM(il.quantity) AS total_items,
         DATEDIFF(
             l3so.order_date,
-            LAG(l3so.order_date) OVER (PARTITION BY l3so.customer_id ORDER BY l3so.order_date DESC)
+            LAG(l3so.order_date) OVER (PARTITION BY l3so.customer_id ORDER BY l3so.order_date DESC, l3so.order_id DESC)
         ) AS interval_days
     FROM last3_succ_orders l3so
     JOIN item_level il USING(order_id)
@@ -345,7 +388,7 @@ last3_succ_orders_stats AS (
         customer_id,
         AVG(interval_days) AS avg_last3_succ_interval,
         AVG(last_succ_totals) AS last3_succ_orders_total,
-        AVG(last_succ_items_returned / COALESCE(total_items, 0)) AS last3_succ_returns_ratio
+        AVG(last_succ_items_returned / NULLIF(total_items, 0)) AS last3_succ_returns_ratio
     FROM last3_succ_orders_help_table
     GROUP BY customer_id
 ),
@@ -370,7 +413,7 @@ last3_orders_help_table AS (
 last3_orders_stats AS (
     SELECT
         customer_id,
-        return_cancel_order_total / COALESCE(last_3orders_total, 0) AS return_cancel_ratio_total_last3
+        return_cancel_order_total / NULLIF(last_3orders_total, 0) AS return_cancel_ratio_total_last3
     FROM last3_orders_help_table
 ),
 
@@ -448,22 +491,22 @@ discount_stats AS (
 last_session AS (
     SELECT
         customer_id,
-        session_id,
-        MAX(session_date) AS last_session_date,
-        pages_viewed
+        MAX(session_date) AS session_date
     FROM sessions_filtered
     WHERE session_date BETWEEN DATE_SUB(@cut_date, INTERVAL 180 DAY)
                            AND @cut_date
-    GROUP BY customer_id, session_id
+    GROUP BY customer_id
 ),
 
 last_session_stats AS (
     SELECT
         ls.customer_id,
-        DATEDIFF(@cut_date, ls.last_session_date) AS days_from_last_session,
-        ls.pages_viewed AS last_session_pages_viewed
+        DATEDIFF(@cut_date, ls.session_date) AS days_from_last_session,
+        sf.pages_viewed AS last_session_pages_viewed
     FROM last_session ls
-    JOIN sessions_filtered USING(session_id)
+    JOIN sessions_filtered sf
+        ON sf.customer_id = ls.customer_id
+       AND sf.session_date = ls.session_date
 ),
 
 successful_orders_180 AS (
@@ -506,7 +549,7 @@ sessions_180_stats AS (
 sessions_to_succ_orders_ratio_180 AS (
     SELECT
         s180.customer_id,
-        so180.successful_orders_180 / COALESCE(s180.total_180days_sessions, 0) AS sessions_to_succ_orders_180days
+        so180.successful_orders_180 / NULLIF(s180.total_180days_sessions, 0) AS sessions_to_succ_orders_180days
     FROM successful_orders_180 so180
     JOIN sessions_180_stats s180 USING(customer_id)
 ),
@@ -660,6 +703,7 @@ LEFT JOIN recent_sessions_90 ss90 USING(customer_id)
 LEFT JOIN last_session_stats lses USING(customer_id)
 LEFT JOIN sessions_to_succ_orders_ratio_180 ss180_r USING(customer_id)
 LEFT JOIN session_intervals si USING(customer_id);
+
 """
 
 with engine.connect() as conn:
