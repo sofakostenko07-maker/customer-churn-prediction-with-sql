@@ -271,7 +271,7 @@ target AS (
             WHEN COALESCE(so120.successful_orders_120, 0) = 0
              AND COALESCE(p60.pages_last_60, 0) < 3
              AND mi.median_interval < 120
-             AND lso.last_suc_order_total < 3 * aov.avg_order_value
+             AND lso.last_suc_order_total < 5 * aov.avg_order_value
             THEN 'CHURNED'
 
             WHEN COALESCE(so30.successful_orders_30, 0) > 0
