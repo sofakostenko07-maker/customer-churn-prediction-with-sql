@@ -125,7 +125,7 @@ The target is designed using business-oriented rules based on customer engagemen
 
 The final target definition is ready
 
-The prediction period is 120 days - client's activity during this period (last 120 days) defines to which group he/she belongs.
+The prediction window is 120 days - client's activity during this period (last 120 days) defines to which group he/she belongs.
 
 
 Planned customer segmentation:
@@ -136,12 +136,16 @@ The segmentation is used to identify customers who are **Active**, **At‑Risk**
 
 ---
 
+**Note**: the purchases in the following statements are considered successful (e.g. order status in Completed or Returned and at least one item is kept by customer)
+
+
 ## Churned Customers
 
 A customer is classified as **Churned** when all of the following conditions are met:
 
-- **No purchases** within the prediction window (120 days).
+- **No purchases** within the prediction window.
 - **Low browsing activity** — fewer than 2 pages viewed in the last 60 days.
+- **Last purchase total** was smaller than 5*average order total
 - **Historically active behavior** — the customer used to purchase more frequently  
   (their median buying interval is **shorter** than the prediction window).
 
@@ -153,22 +157,6 @@ A customer who typically buys every 30–60 days but has not interacted with the
 
 ---
 
-## At‑Risk Customers
-
-A customer is classified as **At‑Risk** when they show early signs of declining engagement:
-
-- Browsing activity exists, but **no recent purchases**.
-- The customer historically purchases **more frequently** than their current inactivity period.
-- Noticeable **drop in purchase frequency**.
-- Increasing **returns or cancellations**.
-
-**Interpretation:**  
-The customer is still present on the platform, but their behavior indicates potential future churn.
-
-**Example:**  
-A customer who visits the website but does not complete purchases, suggesting decreasing intent.
-
----
 
 ## Active Customers
 
@@ -177,16 +165,29 @@ The customer must meet AT LEAST ONE OF this statements to be considered Active:
 
 - **Recent purchases** during last 30 days
 - **Recent purchases** between last 30 and 60 days followed by meaningful browsing activity in past 60 days (3+ pages viewed)
-- **Recent purchases** between last 30 and 60 days 
-- **Consistent buying patterns** aligned with their historical behavior.
-- **Stable order activity** without abnormal gaps.
-- **Meaningful browsing activity** that leads to purchases.
+- **Recent purchases** between last 30 and 60 days and total of this purchases is larger or equal 5*average order total
+- **Client has lifetime weak activity** - he usually purchases once in 120 days or more and his browsing activity is the same
 
 **Interpretation:**  
-The customer continues to interact with the platform regularly and predictably.
+The customer continues to interact with the platform regularly and predictably, as he used before
 
 **Example:**  
 A customer who browses products and completes purchases in line with their usual buying cycle.
+
+---
+
+## At‑Risk Customers
+
+Customers that don't meet Churn or Active criteria are considered **At-risk**. 
+This customers show early signs of declining engagement:
+
+**Examples:** 
+
+- Browsing activity exists, but **no recent purchases**.
+- The customer historically purchases **more frequently** than their current inactivity period.
+
+**Interpretation:**  
+The customer is still present on the platform, but their behavior indicates potential future churn.
 
 ---
 
