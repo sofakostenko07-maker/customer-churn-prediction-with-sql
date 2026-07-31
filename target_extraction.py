@@ -1,8 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-USER = "..."
-PASSWORD = "..."
+USER = "...."
+PASSWORD = "...."
 HOST = "localhost"
 DB = "churn_project"
 
@@ -76,6 +76,27 @@ successful_orders_60 AS (
     WHERE order_date BETWEEN DATE_SUB(@last_date, INTERVAL 60 DAY) AND @last_date
     GROUP BY customer_id
 ),
+
+orders_30_60 AS (
+    SELECT
+        so.customer_id,
+        so.order_id,
+        SUM(CASE WHEN it.returned = 0 THEN it.price_at_purchase * it.quantity ELSE 0 END) AS order_total
+    FROM successful_orders so
+    JOIN items_filtered it USING(order_id)
+    WHERE so.order_date BETWEEN DATE_SUB(@last_date, INTERVAL 60 DAY)
+                           AND DATE_SUB(@last_date, INTERVAL 30 DAY)
+    GROUP BY so.customer_id, so.order_id
+),
+
+sum_orders_30_60 AS (
+    SELECT
+        customer_id,
+        SUM(order_total) AS total_30_60
+    FROM orders_30_60
+    GROUP BY customer_id
+),
+
 
 successful_orders_120 AS (
     SELECT
@@ -258,8 +279,9 @@ target AS (
 
             WHEN COALESCE(so60.successful_orders_60, 0) > 0
              AND COALESCE(so30.successful_orders_30, 0) = 0
-             AND lso.last_suc_order_total >= 5 * aov.avg_order_value
+             AND COALESCE(sum3060.total_30_60, 0) >= 5 * aov.avg_order_value
             THEN 'ACTIVE'
+
 
             WHEN COALESCE(so60.successful_orders_60, 0) > 0
              AND COALESCE(so30.successful_orders_30, 0) = 0
@@ -276,6 +298,7 @@ target AS (
     FROM customers_filtered c
     LEFT JOIN successful_orders_30 so30 USING(customer_id)
     LEFT JOIN successful_orders_60 so60 USING(customer_id)
+    LEFT JOIN sum_orders_30_60 sum3060 USING(customer_id)
     LEFT JOIN successful_orders_120 so120 USING(customer_id)
     LEFT JOIN pages_last_60 p60 USING(customer_id)
     LEFT JOIN median_interval mi USING(customer_id)
