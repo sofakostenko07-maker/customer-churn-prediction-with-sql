@@ -590,7 +590,7 @@ SELECT
     cfl.city,
     cfl.country,
 
-    ofq.median_interval AS shopping_frequency,
+    1/NULLIF(ofq.median_interval) AS shopping_frequency,
 
     ov.avg_order_value,
     ov.min_order_value,
