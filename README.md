@@ -172,9 +172,12 @@ A customer who visits the website but does not complete purchases, suggesting de
 
 ## Active Customers
 
-A customer is classified as **Active** when they demonstrate stable and healthy engagement:
+A customer is classified as **Active** when they demonstrate stable and healthy engagement.
+The customer must meet AT LEAST ONE OF this statements to be considered Active:
 
-- **Recent purchases** within the prediction window.
+- **Recent purchases** during last 30 days
+- **Recent purchases** between last 30 and 60 days followed by meaningful browsing activity in past 60 days (3+ pages viewed)
+- **Recent purchases** between last 30 and 60 days 
 - **Consistent buying patterns** aligned with their historical behavior.
 - **Stable order activity** without abnormal gaps.
 - **Meaningful browsing activity** that leads to purchases.
