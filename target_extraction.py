@@ -177,40 +177,48 @@ median_interval AS (
     WHERE rn = FLOOR((cnt + 1) / 2)
 ),
 
+session_intervals_lifetime AS (
+    SELECT
+        customer_id,
+        DATEDIFF(
+            session_date,
+            LAG(session_date) OVER (PARTITION BY customer_id ORDER BY session_date)
+        ) AS interval_days
+    FROM sessions_filtered
+),
+
+clean_session_intervals_lifetime AS (
+    SELECT customer_id, interval_days
+    FROM session_intervals_lifetime
+    WHERE interval_days IS NOT NULL
+),
+
+ranked_session_intervals_lifetime AS (
+    SELECT
+        customer_id,
+        interval_days,
+        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY interval_days) AS rn,
+        COUNT(*) OVER (PARTITION BY customer_id) AS cnt
+    FROM clean_session_intervals_lifetime
+),
+
+median_session_interval AS (
+    SELECT
+        customer_id,
+        interval_days AS median_session_interval
+    FROM ranked_session_intervals_lifetime
+    WHERE rn = FLOOR((cnt + 1) / 2)
+),
+
 pages_last_60 AS (
     SELECT
         customer_id,
         SUM(pages_viewed) AS pages_last_60
     FROM sessions_filtered
-    WHERE session_date BETWEEN DATE_SUB(@cut_date, INTERVAL 60 DAY) AND @cut_date
+    WHERE session_date BETWEEN DATE_SUB(@last_date, INTERVAL 60 DAY) AND @last_date
     GROUP BY customer_id
 ),
 
-sessions_120 AS (
-    SELECT
-        customer_id,
-        session_date,
-        LAG(session_date) OVER (PARTITION BY customer_id ORDER BY session_date)
-            AS prev_session_date
-    FROM sessions_filtered
-    WHERE session_date BETWEEN DATE_SUB(@cut_date, INTERVAL 120 DAY) AND @cut_date
-),
-
-session_intervals_120 AS (
-    SELECT
-        customer_id,
-        DATEDIFF(session_date, prev_session_date) AS interval_days
-    FROM sessions_120
-    WHERE prev_session_date IS NOT NULL
-),
-
-avg_session_interval_120 AS (
-    SELECT
-        customer_id,
-        AVG(interval_days) AS avg_session_interval_120
-    FROM session_intervals_120
-    GROUP BY customer_id
-),
 
 last_session AS (
     SELECT
@@ -223,14 +231,14 @@ last_session AS (
 days_since_last_session AS (
     SELECT
         customer_id,
-        DATEDIFF(@cut_date, last_session_date) AS days_since_last_session
+        DATEDIFF(@last_date, last_session_date) AS days_since_last_session
     FROM last_session
 ),
 
 days_since_last_successful AS (
     SELECT
         customer_id,
-        DATEDIFF(@cut_date, last_suc_date) AS days_since_last_successful_order
+        DATEDIFF(@last_date, last_suc_date) AS days_since_last_successful_order
     FROM last_successful_order
 ),
 
@@ -243,7 +251,6 @@ target AS (
              AND COALESCE(p60.pages_last_60, 0) < 3
              AND mi.median_interval < 120
              AND lso.last_suc_order_total < 3 * aov.avg_order_value
-             AND asi.avg_session_interval_120 < 60
             THEN 'CHURNED'
 
             WHEN COALESCE(so30.successful_orders_30, 0) > 0
@@ -260,7 +267,7 @@ target AS (
             THEN 'ACTIVE'
 
             WHEN dsl.days_since_last_successful_order <= mi.median_interval
-             AND dss.days_since_last_session <= asi.avg_session_interval_120
+             AND dss.days_since_last_session <= msi.median_session_interval
             THEN 'ACTIVE'
 
             ELSE 'AT-RISK'
@@ -274,7 +281,7 @@ target AS (
     LEFT JOIN median_interval mi USING(customer_id)
     LEFT JOIN last_successful_order_total lso USING(customer_id)
     LEFT JOIN avg_order_value_excl_last aov USING(customer_id)
-    LEFT JOIN avg_session_interval_120 asi USING(customer_id)
+    LEFT JOIN median_session_interval msi USING(customer_id)
     LEFT JOIN days_since_last_successful dsl USING(customer_id)
     LEFT JOIN days_since_last_session dss USING(customer_id)
 )
