@@ -82,6 +82,7 @@ successful_orders_for_intervals AS (
                 )
             )
         )
+        AND ol.order_date < DATE_SUB(@cut_date, INTERVAL 90 DAY)
 ),
 
 intervals AS (
@@ -135,6 +136,7 @@ order_values AS (
         FROM order_level ol
         JOIN item_level il USING(order_id)
         WHERE ol.status IN ('Completed', 'Returned')
+          AND ol.order_date < DATE_SUB(@cut_date, INTERVAL 90 DAY)
         GROUP BY ol.order_id, ol.customer_id
     ) t
     GROUP BY t.customer_id
@@ -149,6 +151,7 @@ return_cancel AS (
         SUM(CASE WHEN ol.status = 'Cancelled' THEN il.quantity ELSE 0 END) AS cancelled_items_total
     FROM order_level ol
     JOIN item_level il USING(order_id)
+    WHERE ol.order_date < DATE_SUB(@cut_date, INTERVAL 90 DAY)
     GROUP BY ol.customer_id
 ),
 
@@ -160,6 +163,104 @@ return_cancel_ratio AS (
     FROM order_values ov
     JOIN return_cancel rc USING(customer_id)
 ),
+
+successful_orders_for_intervals_90d AS (
+    SELECT
+        ol.order_id,
+        ol.customer_id,
+        ol.order_date
+    FROM order_level ol
+    JOIN item_level il USING(order_id)
+    WHERE 
+        (
+            ol.status = 'Completed'
+            OR (
+                ol.status = 'Returned'
+                AND EXISTS (
+                    SELECT 1
+                    FROM item_level il2
+                    WHERE il2.order_id = ol.order_id
+                      AND il2.returned = 0
+                )
+            )
+        )
+        AND ol.order_date >= DATE_SUB(@cut_date, INTERVAL 90 DAY)
+),
+
+intervals_90d AS (
+    SELECT
+        customer_id,
+        DATEDIFF(
+            order_date,
+            LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)
+        ) AS interval_days
+    FROM successful_orders_for_intervals_90d
+),
+
+ranked_intervals_90d AS (
+    SELECT
+        customer_id,
+        interval_days,
+        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY interval_days) AS rn,
+        COUNT(*) OVER (PARTITION BY customer_id) AS cnt
+    FROM intervals_90d
+    WHERE interval_days IS NOT NULL
+),
+
+order_frequency_90d AS (
+    SELECT
+        customer_id,
+        interval_days AS median_interval_90d
+    FROM ranked_intervals_90d
+    WHERE rn = FLOOR((cnt + 1) / 2)
+),
+
+order_values_90d AS (
+    SELECT
+        t.customer_id,
+        AVG(order_total) AS avg_order_value_90d,
+        MIN(order_total) AS min_order_value_90d,
+        SUM(order_total) AS total_orders_value_90d,
+        COUNT(*) AS orders_count_90d,
+        AVG(items_bought) AS avg_items_per_order_90d,
+        SUM(items_bought) AS total_items_per_customer_90d
+    FROM (
+        SELECT
+            ol.customer_id,
+            ol.order_id,
+            SUM(CASE WHEN il.returned = 0 THEN il.price_at_purchase * il.quantity ELSE 0 END) AS order_total,
+            SUM(CASE WHEN il.returned = 0 THEN il.quantity ELSE 0 END) AS items_bought
+        FROM order_level ol
+        JOIN item_level il USING(order_id)
+        WHERE ol.status IN ('Completed', 'Returned')
+          AND ol.order_date >= DATE_SUB(@cut_date, INTERVAL 90 DAY)
+        GROUP BY ol.order_id, ol.customer_id
+    ) t
+    GROUP BY t.customer_id
+),
+
+return_cancel_90d AS (
+    SELECT
+        ol.customer_id,
+        SUM(CASE WHEN il.returned = 1 AND ol.status = 'Returned' THEN il.quantity ELSE 0 END) AS returned_items_90d,
+        SUM(CASE WHEN il.returned = 1 AND ol.status = 'Returned' THEN il.quantity * il.price_at_purchase ELSE 0 END) AS returned_items_total_90d,
+        SUM(CASE WHEN ol.status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_orders_90d,
+        SUM(CASE WHEN ol.status = 'Cancelled' THEN il.quantity ELSE 0 END) AS cancelled_items_total_90d
+    FROM order_level ol
+    JOIN item_level il USING(order_id)
+    WHERE ol.order_date >= DATE_SUB(@cut_date, INTERVAL 90 DAY)
+    GROUP BY ol.customer_id
+),
+
+return_cancel_ratio_90d AS (
+    SELECT
+        ov.customer_id,
+        (rc.returned_items_total_90d + rc.cancelled_items_total_90d) / NULLIF(ov.total_orders_value_90d, 0)
+        AS return_cancel_ratio_90d
+    FROM order_values_90d ov
+    JOIN return_cancel_90d rc USING(customer_id)
+),
+
 
 account_age AS (
     SELECT
@@ -599,6 +700,19 @@ SELECT
     ov.orders_count,
     ov.avg_items_per_order,
     ov.total_items_per_customer,
+    
+    ov90.avg_order_value_90d,
+    ov90.min_order_value_90d,
+    ov90.total_orders_value_90d,
+    ov90.orders_count_90d,
+    ov90.avg_items_per_order_90d,
+    ov90.total_items_per_customer_90d,
+    rc90.returned_items_90d,
+    rc90.returned_items_total_90d,
+    rc90.cancelled_orders_90d,
+    rc90.cancelled_items_total_90d,
+    return_cancel_ratio_90d,
+    1/NULLIF(of90.median_interval_90d, 0) AS shopping_frequency_90d,
 
     rc.returned_items,
     rc.returned_items_total,
@@ -690,6 +804,10 @@ LEFT JOIN order_frequency ofq USING(customer_id)
 LEFT JOIN order_values ov USING(customer_id)
 LEFT JOIN return_cancel rc USING(customer_id)
 LEFT JOIN return_cancel_ratio rcr USING(customer_id)
+LEFT JOIN order_values_90d ov90 USING(customer_id)
+LEFT JOIN return_cancel_90d rc90 USING(customer_id)
+LEFT JOIN return_cancel_ratio_90d USING(customer_id)
+LEFT JOIN order_frequency_90d of90 USING(customer_id)
 LEFT JOIN account_age aa USING(customer_id)
 LEFT JOIN last_successful_stats lss USING(customer_id)
 LEFT JOIN last_successful_ratios lsr USING(customer_id)
