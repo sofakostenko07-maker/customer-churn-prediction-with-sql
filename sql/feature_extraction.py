@@ -197,22 +197,12 @@ intervals_90d AS (
     FROM successful_orders_for_intervals_90d
 ),
 
-ranked_intervals_90d AS (
-    SELECT
-        customer_id,
-        interval_days,
-        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY interval_days) AS rn,
-        COUNT(*) OVER (PARTITION BY customer_id) AS cnt
-    FROM intervals_90d
-    WHERE interval_days IS NOT NULL
-),
-
 order_frequency_90d AS (
     SELECT
         customer_id,
-        interval_days AS median_interval_90d
-    FROM ranked_intervals_90d
-    WHERE rn = FLOOR((cnt + 1) / 2)
+        AVG(interval_days) AS avg_interval_90d
+    FROM intervals_90d
+    GROUP BY customer_id
 ),
 
 order_values_90d AS (
@@ -712,7 +702,7 @@ SELECT
     rc90.cancelled_orders_90d,
     rc90.cancelled_items_total_90d,
     return_cancel_ratio_90d,
-    1/NULLIF(of90.median_interval_90d, 0) AS shopping_frequency_90d,
+    1/NULLIF(of90.avg_interval_90d, 0) AS shopping_frequency_90d,
 
     rc.returned_items,
     rc.returned_items_total,
