@@ -375,9 +375,11 @@ last3_succ_orders_help_table AS (
         SUM(CASE WHEN il.returned = 1 THEN il.quantity ELSE 0 END) AS last_succ_items_returned,
         SUM(il.quantity) AS total_items,
         DATEDIFF(
-            l3so.order_date,
-            LAG(l3so.order_date) OVER (PARTITION BY l3so.customer_id ORDER BY l3so.order_date DESC, l3so.order_id DESC)
+        l3so.order_date,
+        LAG(l3so.order_date) OVER (PARTITION BY l3so.customer_id ORDER BY l3so.order_date, l3so.order_id)
+        
         ) AS interval_days
+
     FROM last3_succ_orders l3so
     JOIN item_level il USING(order_id)
     GROUP BY l3so.customer_id, l3so.order_id, l3so.order_date
@@ -590,7 +592,7 @@ SELECT
     cfl.city,
     cfl.country,
 
-    1/NULLIF(ofq.median_interval) AS shopping_frequency,
+    1/NULLIF(ofq.median_interval, 0) AS shopping_frequency,
 
     ov.avg_order_value,
     ov.min_order_value,
