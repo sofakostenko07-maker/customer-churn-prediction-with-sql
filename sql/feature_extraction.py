@@ -95,27 +95,12 @@ intervals AS (
     FROM successful_orders_for_intervals
 ),
 
-clean_intervals AS (
-    SELECT customer_id, interval_days
-    FROM intervals
-    WHERE interval_days IS NOT NULL
-),
-
-ranked_intervals AS (
-    SELECT
-        customer_id,
-        interval_days,
-        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY interval_days) AS rn,
-        COUNT(*) OVER (PARTITION BY customer_id) AS cnt
-    FROM clean_intervals
-),
-
 order_frequency AS (
     SELECT
         customer_id,
-        interval_days AS median_interval
-    FROM ranked_intervals
-    WHERE rn = FLOOR((cnt + 1) / 2)
+        AVG(interval_days) AS avg_interval
+    FROM intervals
+    GROUP BY customer_id
 ),
 
 order_values AS (
@@ -731,7 +716,7 @@ SELECT
     cfl.city,
     cfl.country,
 
-    1/NULLIF(ofq.median_interval, 0) AS shopping_frequency,
+    1/NULLIF(ofq.avg_interval, 0) AS shopping_frequency,
     (ov.orders_count - sov.succ_orders_count) AS unsuccessful_orders_count,
 
     sov.succ_orders_count,
