@@ -15,10 +15,47 @@ The main goal is to simulate a realistic data science workflow:
 - evaluating the final model performance,
 - a lightweight web interface for model visualization 
   
-  
+The project is currently **in development**.
+The current stage focuses on finalizing the two binary models (Active vs Non‑Active and At‑Risk vs Churned) after completing SQL feature extraction and target construction.
 
-The project is currently **in development**.  
-The current stage focuses on completing SQL feature extraction and churn target.
+# Current Development Stage
+
+Completed:
+- synthetic dataset generation  
+- SQL database loading  
+- SQL feature extraction 
+- target construction (Active / At‑Risk / Churned)  
+- initial feature engineering   
+- exploratory modeling  
+
+In progress:
+- finalizing two binary models:
+  - Active vs Non‑Active  
+  - At‑Risk vs Churned  
+- validating model stability  
+
+Planned:
+- final model evaluation on test set  
+- SHAP analysis and feature importance visualization  
+- business interpretation of model outputs  
+- final README polishing and project packaging
+
+---
+
+# Project Structure
+
+
+├── data_generation - Synthetic dataset generation
+├── sql - Loading generated data into SQL database, feature and target extraction
+├── data - Raw (SQL tables in CSV files) and Processed (feature_matrix, target parquet)
+└── README.md
+
+The upcoming files such as model.pkl are in progress
+
+
+---
+
+# Data Preparation and Time-Based Approach
 
 The dataset is fully synthetic and generated programmatically to simulate realistic e-commerce behavior.
 
@@ -28,25 +65,6 @@ Dataset size:
 - ≈ 1.7 mln orders
 - ≈ 13.5 mln sessions
 
----
-
-# Project Structure
-
-
-├── data_generation.py - Synthetic dataset generation
-├── config.py -  Dataset and pipeline configuration
-├── load_to_sql.py - Loading generated data into SQL database
-├── feature_extraction.sql - SQL feature engineering pipeline (in progress)
-├── target_definition.sql - Churn target creation (in progress)
-└── README.md
-
-The upcoming files such as CSV with extracted features from SQL, target, 
-model.pkl are in progress
-
-
----
-
-# Data Preparation and Time-Based Approach
 
 To avoid data leakage, the project follows a time-based feature engineering approach.
 
@@ -92,14 +110,14 @@ This prevents using future information when generating historical features.
 
 # SQL Feature Engineering
 
-The current stage of the project ended in creating customer-level behavioral features using SQL CTE pipelines.
+Customer‑level behavioral features have been fully implemented using SQL CTE pipelines, including purchase dynamics, session activity, value trends, and return/cancellation behavior.
 
 Features are designed to represent both:
 
 ## Long-term customer behavior
 
 Examples:
-- median purchase interval (for orders which were completed or at least one time was kept)
+- average purchase interval (for orders which were completed or at least one item was kept)
 - historical order value statistics
 - return/cancellation behavior
 - customer lifetime activity
@@ -116,19 +134,15 @@ Examples:
 - browsing activity  (last 180, 90 days)
 
 
-
 ---
 
 # Target Definition (Churn / At-Risk / Active)
 
 The target is designed using business-oriented rules based on customer engagement patterns.
 
-The final target definition is ready
-
 The prediction window is 120 days - client's activity during this period (last 120 days) defines to which group he/she belongs.
 
 
-Planned customer segmentation:
 # Customer Churn Segmentation
 
 This project defines customer engagement segments based on behavioral, transactional, and browsing activity patterns.  
@@ -191,29 +205,6 @@ The customer is still present on the platform, but their behavior indicates pote
 
 ---
 
-# Current Development Stage
-
-Completed:
-- synthetic dataset generation
-- SQL database loading
-- initial feature engineering design
-- business logic planning
-- code for feature extraction 
-- code for target extraction 
-
-In progress:
-- completing SQL feature and target extraction
-
-
-Planned:
-- machine learning pipeline:
-  - EDA and feature exploration/feature engineering
-  - choosing and training models
-  - model evaluation
-  - feature importance analysis
-  - SHAP interpretation
-
-
 ---
 
 # Technologies
@@ -221,7 +212,7 @@ Planned:
 - Python
 - SQL
 - Pandas
-- Machine Learning (planned)
+- scikit-learn
 - Synthetic data generation
 
 
