@@ -38,7 +38,7 @@ order_level AS (
         order_date,
         CASE
             WHEN status_date >= @cut_date THEN 'Completed'
-            ELSE COALESCE(status, 'Completed')
+            ELSE status
         END AS status,
         CASE
             WHEN status_date >= @cut_date THEN order_date
