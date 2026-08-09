@@ -1,8 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-USER = "...."
-PASSWORD = "...."
+USER = "..."
+PASSWORD = "..."
 HOST = "localhost"
 DB = "churn_project"
 
@@ -27,7 +27,12 @@ orders_filtered AS (
 
 items_filtered AS (
     SELECT
-        oi.*
+        oi.order_item_id,
+        oi.product_id,
+        oi.quantity,
+        oi.price_at_purchase,
+        oi.order_id,
+        COALESCE(oi.returned, 0) AS returned
     FROM order_items oi
     JOIN orders_filtered USING(order_id)
 ),
