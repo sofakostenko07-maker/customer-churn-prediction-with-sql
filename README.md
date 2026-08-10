@@ -39,13 +39,20 @@ The projects contains two binary models, connected together to produce a final o
 
 
 data_generation/   - Synthetic dataset generation
+
 sql/               - Loading generated data into SQL database, feature and target extraction
+
 data/
+
 │   raw/           - SQL tables in CSV files
 │   processed/     - feature_matrix, target parquet
+
 notebooks/         - Colab notebook with the full churn prediction pipeline
+
 SHAP/              - SHAP images for both models on test data
+
 models/            - joblib models A, B
+
 README.md
 
 
