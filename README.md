@@ -39,7 +39,7 @@ The projects contains two binary models, connected together to produce a final o
 * Data Pipeline: automate continuous streaming and feature engineering using SQL.
 * Model Retraining: set up automated online learning/retraining loops.
 * Deployment: Build a lightweight API using FastAPI/Streamlit.
-* 
+  
 ---
 
 # Project Structure
