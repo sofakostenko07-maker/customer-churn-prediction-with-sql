@@ -216,10 +216,13 @@ The customer is still present on the platform, but their behavior indicates pote
 # EDA
 
 Exploratory analysis showed there were many clients with 0 value features. Feature engineering was focused on ratio features, including only features with 60%+ non-zero value. 
+
 Some of the features were dropped at once such as city, country due to their invaluability (country was the same for all clients, cities don't provide any valuable information to churn model). Birth date was converted to client's age.
+
 Some features turned out to be invaluable to models (returned items in category for model A, and plenty of features with 0 SHAP value for model B (see there are 2 models in this project below)). 
 Many features were preserved due to their logical sense and adequate SHAP value. 
 Some features such as returns in category, category spent total surprisingly turned out to be important to hte model. The full list of features needed to launch a pipeline, dropped features from models A and B is at the end of the Colab notebook.
+
 It's well noticing that many features are highly correlated, for example items per order and order total. This correlation is not a problem since this feature potentially bring different infomation to the model (a client that has 1 order for 1000zl and another client with 3 orders for 1000 zl are different in their purchase behavior). Such multicollinearity affects the model choice.
 
 
@@ -233,7 +236,10 @@ Total features given to models:
 ---
 # Handling Nan values 
 
-Nan values are handled in SQL pipeline for numerical features, as they typically mean - no purchase, no sessions etc. for client. The database allows NULL values only for Order Status, client birth date, Returned (flag of returned item). Orders with null status are not taken into account, though the Returned nulls are considered as non-returned item and are taken into account. If the database allowed more Null values, their handling and questioning shoul be done on a separate stage of production. 
+Nan values are handled in SQL pipeline for numerical features, as they typically mean - no purchase, no sessions etc. for client.
+
+The database allows NULL values only for Order Status, client birth date, Returned (flag of returned item). Orders with null status are not taken into account, though the Returned nulls are considered as non-returned item and are taken into account. If the database allowed more Null values, their handling and questioning shoul be done on a separate stage of production. 
+
 As for client birth date, if it turns out to be Nan, it is imputed with dataset median value in basic_cleaning function. 
 The dataset i created contained no Nan values, and the Nans meaning an actual 0 were filled with 0 at SQL pipeline
 
