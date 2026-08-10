@@ -246,7 +246,9 @@ The dataset i created contained no Nan values, and the Nans meaning an actual 0 
 ---
 # Model Training
 
-With the target and features ready, the next step was building and comparing the models, handling class imbalance, tuning parameters and checking how stable the results were. The chosen models to try were XGBoost and LightGBM, as they handle table-like datasets and multicollinearity well. Linear models were not tested due to multicollinearity of features.
+With the target and features ready, the next step was building and comparing the models, handling class imbalance, tuning parameters and checking how stable the results were. 
+
+The chosen models to try were XGBoost and LightGBM, as they handle table-like datasets and multicollinearity well. Linear models were not tested due to multicollinearity of features.
 
 ## Why two models instead of one classifier
 
