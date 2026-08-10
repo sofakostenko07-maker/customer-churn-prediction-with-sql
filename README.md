@@ -70,7 +70,7 @@ To avoid data leakage, the project follows a time-based feature engineering appr
 
 A historical cut-off date is defined: *2026-01-01*
 
-**Cut-off date = six months before the latest date available in the dataset *(2026-07-01)* **
+**Cut-off date = six months before the latest date available in the dataset *(2026-07-01)***
 
 All customer features are calculated only using information available before this date.
 
