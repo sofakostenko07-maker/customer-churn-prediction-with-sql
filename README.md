@@ -16,7 +16,9 @@ The main goal is to simulate a realistic data science workflow:
 - a lightweight web interface for model visualization 
   
 The project is currently **in development**.
-The current stage focuses on finalizing the two binary models (Active vs Non‑Active and At‑Risk vs Churned) after completing SQL feature extraction and target construction.
+The current stage focuses on SHAP for train and test set, making conclusions sbout models' performances, finalizing README, notebook
+
+Approximate time to end: 10.08-11.08
 
 # Current Development Stage
 
@@ -26,13 +28,19 @@ Completed:
 - SQL feature extraction 
 - target construction (Active / At‑Risk / Churned)  
 - initial feature engineering   
-- exploratory modeling  
-
-In progress:
-- finalizing two binary models:
+- exploratory modeling
+- two binary models tuned:
   - Active vs Non‑Active  
   - At‑Risk vs Churned  
-- validating model stability  
+- validating model stability
+- treshold for model A and business logic chosen
+- model B churn probabilities and client's LTV are now used in formula to compute offer score (>1)
+- models trained on full train data
+- models evaluation on test set
+
+In progress:
+- SHAP
+- finalizing README, notebook
 
 Planned:
 - final model evaluation on test set  
