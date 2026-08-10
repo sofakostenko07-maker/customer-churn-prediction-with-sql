@@ -38,17 +38,16 @@ The projects contains two binary models, connected together to produce a final o
 # Project Structure
 
 
-data_generation/   - Synthetic dataset generation
-sql/               - Loading generated data into SQL database, feature and target extraction
-data/
-
-    raw/           - SQL tables in CSV files
-    processed/     - feature_matrix, target parquet
-notebooks/         - Colab notebook with the full churn prediction pipeline
-SHAP/              - SHAP images for both models on test data
-models/            - joblib models A, B
-norm_params/       - dict with parametrs like LTVQ25, p_churn_cap, LTVQ99 (used in functions)
-README.md
+    data_generation/   - Synthetic dataset generation
+    sql/               - Loading generated data into SQL database, feature and target extraction
+    data/
+      raw/           - SQL tables in CSV files
+      processed/     - feature_matrix, target parquet
+    notebooks/         - Colab notebook with the full churn prediction pipeline
+    SHAP/              - SHAP images for both models on test data
+    models/            - joblib models A, B
+    norm_params/       - dict with parametrs like LTVQ25, p_churn_cap, LTVQ99 (used in functions)
+    README.md
 
 
 Feature contract, prediction pipeline and other functions are given at the end of Colab notebook. Notebook contains helpful descriptions and outputs, as well as SHAP outputs at the end of the document
