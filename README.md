@@ -232,177 +232,240 @@ As for client birth date, if it turns out to be Nan, it is imputed with dataset 
 The dataset i created contained no Nan values, and the Nans meaning an actual 0 were filled with 0 at SQL pipeline
 
 ---
-
 # Model Training
 
-With the target and features ready, the next stage was actually building the models: picking an algorithm, dealing with class imbalance, tuning parameters, checking stability, and deciding on the final modeling approach before moving on to how predictions get turned into a business decision.
+With the target and features ready, the next step was building and comparing the models, handling class imbalance, tuning parameters and checking how stable the results were.
 
-# Why two models instead of one classifier
+## Why two models instead of one classifier
 
-The first attempt was a single multiclass XGBoost (Active / At-Risk / Churned). It worked, but it struggled a lot with At-Risk and especially Churned clients, while giving out plenty of false alarms on Active clients too. That's where the idea of splitting the problem into **two binary models** came from:
+The first attempt was a single multiclass XGBoost model for **Active / At-Risk / Churned**.
 
-- **Model A** — Active (0) vs Non-Active (1)
-- **Model B** — At-Risk (0) vs Churned (1), applied to clients Model A flagged as Non-Active
+It worked, but it struggled with the smaller classes, especially Churned, and produced many false positives for Active customers.
 
-Splitting it this way turned out to work noticeably better than the multiclass version, and it also fits the business side of the problem much more naturally: first decide *who* needs attention, then decide *how much* attention they need.
+Because of that, I split the problem into two binary models:
+
+* **Model A — Active (0) vs Non-Active (1)**
+* **Model B — At-Risk (0) vs Churned (1)**, applied only to customers flagged as Non-Active by Model A.
+
+This worked better than the multiclass approach and also fits the business logic more naturally:
+
+> First decide who needs attention, then estimate how much attention they need.
 
 ---
 
-# Not a classification problem — a discount-sizing problem
+# Model A — Who gets attention?
 
-The important shift in this project is that **churn probability is not treated as a category**. Model B's output isn't consumed as "churned = give up on them" / "at-risk = try to save them". Instead, it's turned into a continuous **offer-score**, which is basically a multiplier for whatever basic discount the business already plans to give.
+Model A predicts the probability that a customer is **Non-Active**.
 
-## Model A: who gets attention?
+The final XGBoost model was selected using PR-AUC as the main metric.
 
-Model A returns the probability of a client being Non-Active. The highest PR-AUC was achieved with the following XGBoost parameters:
+### Parameters
 
-Objective: binary:logistic
-Eval metric: aucpr
-n_estimators: 53
-Learning rate: 0.05
-Max depth: 6
-Min child weight: 3
-Subsample: 0.8
-Colsample_bytree: 0.8
-Scale_pos_weight: ratio of negative to positive class
-Random state: 42
+* `objective`: binary:logistic
+* `eval_metric`: aucpr
+* `n_estimators`: 53
+* `learning_rate`: 0.05
+* `max_depth`: 6
+* `min_child_weight`: 3
+* `subsample`: 0.8
+* `colsample_bytree`: 0.8
+* `scale_pos_weight`: class imbalance ratio
+* `random_state`: 42
 
-n_estimators was computed using early stopping on validation set. 
+`n_estimators` was selected using early stopping on the validation set.
 
-Unfortunately, RandomizedSearchCV (40 iterations) around this parameters failed to find better parameters. LightGBM was also tried with some regularization, but it produced the same slightly poorer results, so it was not tuned.
-The model's ability to correctly distinguish between clasees is definitely not the best, to classify NON-ACTIVE clients correctly treshlod has to be lowered, resulting in more False Positives. There is no good balance of Precision and Recall on the curve. 
-Because of that, some proposal about using client's LTV is also made, it may or not be accepted:
+I also tried `RandomizedSearchCV` with 40 iterations and LightGBM (only one try with some regularization to see if it's worth a serach) but neither gave better results.
 
-- **Probability below 0.35** - client is considered **ACTIVE**, no risk detected, nothing else happens for them.
-- **Probability between 0.35 and 0.55, and the client's LTV is below the LTV 25th percentile** - client is flagged as **LOW-RISK AND LOW-VALUE**. In plain terms: the model isn't very confident this client is actually leaving, *and* the client hasn't historically spent much anyway. These clients are still treated as Non-Active and passed into Model B for processing just like everyone else, they're not skipped or excluded at this stage. They only get separated out into their own label so they can be told apart later if the business wants to.
-- **Everything else** - client is considered plain **NON-ACTIVE** and goes into Model B.
+### Choosing the threshold
 
-The LTV split exists because a client sitting right around the threshold, with barely any purchase history, isn't necessarily worth chasing the same way a high-LTV borderline client is — but instead of dropping them from the process entirely, the pipeline just keeps track of who they are passing them to a special category, and considering still counting their churn probability in model B. Business may want to give such a client a normal offer according to their offer-score, the lowest discount or nothing at all depending ob business' strategy.
+The model does not give a good Precision/Recall balance at the default threshold. To catch more actually Non-Active customers, the threshold has to be lowered, which creates more false positives.
 
+The final threshold was set to **0.35**.
 
+An additional optional business rule uses LTV for customers close to this threshold:
 
-## Model B: answers question How much attention to risk client?
+* **p < 0.35** → Active, no risk detected.
+* **0.35 ≤ p < 0.55 + low LTV** → Low-Risk / Low-Value.
+* **Everything else** → Non-Active and passed to Model B.
 
-Key training parameters:
+Low-Risk / Low-Value customers are **not removed from the pipeline**. They are still passed to Model B, but kept as a separate label so the business can decide later whether they should receive a smaller offer or no offer.
 
-Objective: binary:logistic
-Eval metric: aucpr
-n_estimators: 26
-Learning rate: 0.05
-Max depth: 5
-Min child weight: 3
-Subsample: 0.8
-Colsample_bytree: 0.8
-L2 regularization (reg_lambda): 0.2
-Scale_pos_weight: ratio of negative to positive class
-Random state: 42
+The idea is simple: a borderline customer with very low historical value may not need the same retention effort as a high-value customer with the same risk.
 
-Additional dropped features before training (need to stay in the dataset for LTV computation):
+---
 
-succ_orders_count_90d
-avg_order_value_90d
+# Model B — How serious is the risk?
 
-n_estimators was computed using early stopping on validation set. 
+Model B is applied only to customers identified as Non-Active by Model A.
 
-For every client that reaches Model B, we get the probability of being fully churned rather than just at-risk. Since this probability tends to stay fairly compressed (it rarely gets close to 1, even for the riskiest clients), it's rescaled against the highest churn probability seen in the training data, and capped at 1 — so it stretches back out into a proper 0-to-1 risk score instead of staying squeezed into a narrow range.
+It predicts:
 
-LTV is calculated from the client's order history and average order value, then normalized the same way, on a 0-to-1 scale, based on the range of LTV values seen in training. However, while probability can never escape 1, the LTV score can jump higher than 1 if the client's LTV is higher that current 99's LTV quantile, the highest LTV seen in the dataset, but not the maximum value to reduce the shrinkage of coefficient for regular customers.
+**At-Risk (0) vs Churned (1)**
 
-Both pieces then get combined into the final offer-score: it's a weighted blend where churn risk counts for 60% of the score and LTV counts for 40%, plus a baseline of 1 added on top.
+### Parameters
 
-The offer-score starts at **1 by default**, even for a client with zero LTV and zero churn probability — because if a client made it into Model B at all, they're already showing some risk, so business should still be willing to give at least a small offer to keep them. From there, the score only grows with churn risk and value, and it's meant to be multiplied directly by whatever base discount the business already plans to give (so a client with a bigger offer-score simply gets a bigger discount out of the same base offer), meaning the riskier and more valuable a client is, the bigger the final offer gets. The offer-score can jump higher than 2, though in most cases it will never go upper, only if client's LTV is very very large compared to what we've seen in the datset typically (99 quantile as discussed earlier)
+* `objective`: binary:logistic
+* `eval_metric`: aucpr
+* `n_estimators`: 26
+* `learning_rate`: 0.05
+* `max_depth`: 5
+* `min_child_weight`: 3
+* `subsample`: 0.8
+* `colsample_bytree`: 0.8
+* `reg_lambda`: 0.2
+* `scale_pos_weight`: class imbalance ratio
+* `random_state`: 42
 
-This is really the core idea of the project: **the two models aren't meant to produce a clean churned/not-churned label — they're meant to produce a ranking and a sizing signal for retention spend.** 
+`n_estimators` was selected using early stopping.
+
+Two features were dropped before training but kept in the dataset because they are needed for LTV calculation:
+
+* `succ_orders_count_90d`
+* `avg_order_value_90d`
+
+---
+
+# From churn probability to offer-score
+
+The main idea of the project is not simply to predict **Churned / Not Churned**.
+
+The models are used to create a signal for **retention decisions**.
+
+Model B gives a probability of being fully Churned. Since the probabilities are quite compressed, they are rescaled against the highest churn probability seen in the training data.
+
+LTV is also normalized to create an LTV score.
+
+The two values are then combined:
+
+* **60% — churn risk**
+* **40% — customer LTV**
+* **+ 1 baseline**
+
+The resulting **offer-score** can be multiplied by a base discount defined by the business.
+
+So, in simple terms:
+
+> Higher risk + higher customer value → higher retention offer.
+
+The score starts at 1 for customers reaching Model B, because they already show some level of risk. In most cases it stays close to this range, but it can go above 2 for customers with exceptionally high LTV.
+
+This makes the final output more useful for business decisions than a simple churn label.
 
 ---
 
 # Test Evaluation
 
-Test performance is measured on Model A's Active vs Non-Active call, since Churned/At-Risk isn't something we can cleanly score against ground truth the same way (see explanation above — it feeds a business score, not a hard label).
+The test evaluation focuses on **Model A**, because the Active vs Non-Active target has a clear ground truth.
 
-Two views were compared:
-- a plain threshold call (`p_A ≥ 0.35` → Non-Active)
-- the same call with the LTV-based LOW-RISK AND LOW-VALUE filtering applied on top (meaning that LOW-RISK AND LOW-VALUE are considered to be ACTIVE)
+Two versions were compared:
 
-Confusion matricies for both views:
+1. **Plain threshold:** `p ≥ 0.35` → Non-Active
+2. **Threshold + LTV rule:** Low-Risk / Low-Value customers are treated as Active
 
-1) Plain threshold call
-|         | **Predicted Active** | **Predicted Non‑active** |
-                           | --- | --- | --- |
-| **Actual Active**     | **4374** | **8634** |
-| **Actual Non‑active** |  **217** | **4959** |
+## 1. Plain threshold
 
-2) Additional LTV based filtration 
-|         | **Predicted Active** | **Predicted Non‑active** |
-                           | --- | --- | --- |
-| **Actual Active**     | **4631** | **8377** |
-| **Actual Non‑active** |  **287** | **4889** |
+|                       | Predicted Active | Predicted Non-Active |
+| --------------------- | ---------------: | -------------------: |
+| **Actual Active**     |    4,374 (33.6%) |        8,634 (66.4%) |
+| **Actual Non-Active** |       217 (4.2%) |        4,959 (95.8%) |
 
+This gives:
 
-**Honest take:** the model is not performing great. It does catch a large share of actually Non-Active clients, and it's clearly not just labeling everyone Non-Active, but there are still a lot of false positives on the Active side. Applying the LTV filtration on top does cut down false positives, at the cost of missing a few true Non-Active clients, which is exactly the kind of trade-off that should be a business call, not a data science one. The comparison was made just to show the results of possible cutting of clients with low risk and low value.
+* **Non-Active recall: 95.8%**
+* **Non-Active precision: 36.5%**
 
----
+The model catches most of the actually Non-Active customers, but at the cost of a large number of false positives among Active customers.
 
-# SHAP interpretation
+## 2. Threshold + LTV rule
 
-## Model A — Active (0) vs Non-Active (1)
+|                       | Predicted Active | Predicted Non-Active |
+| --------------------- | ---------------: | -------------------: |
+| **Actual Active**     |    4,631 (35.8%) |        8,377 (64.2%) |
+| **Actual Non-Active** |       287 (5.5%) |        4,889 (94.5%) |
 
-Feature importance is stable across train and test — no signs of overfitting or data drift, the main churn-risk drivers stay consistent in both sets.
+This version:
 
-Key insights:
-- `succ_orders_per_account_age` up : lower churn risk (loyal, active users)
-- `account_age_days` up : older accounts tend to stay longer
-- `shopping_frequency` down : higher churn risk
-- `avg_session_interval` up : longer inactivity, higher churn risk
-- `unsuccessful_orders_count` up : frustration, higher churn risk
+* reduces false positives from **8,634 → 8,377**
+* slightly reduces recall from **95.8% → 94.5%**
 
-High activity and frequent orders protect against churn; inactivity and failed orders push the risk up.
+So the LTV rule gives a small trade-off: fewer Active customers are incorrectly targeted, while slightly more Non-Active customers are missed.
 
-## Model B — At-Risk (0) vs Churned (1)
-
-Same story here — SHAP patterns are stable between train and test, so the model generalizes well rather than memorizing train-specific quirks. Top features reflect engagement and product-specific behavior.
-
-Key insights:
-- `avg_session_interval` up : strongest churn driver (long gaps between sessions)
-- `sessions_90d`, `shopping_frequency` up : lower churn risk
-- `toys_items_returned` up : negative impact (return-heavy users churn faster)
-- `pets_spent` up : positive impact (loyal, high-value segment)
-- `mobile_sessions_count_180` up : active mobile users tend to stay longer
-
-Model B is mostly picking up behavioral signals — session gaps, return patterns, and spending — rather than static demographic stuff, which fits the business story well.
+Whether this trade-off is worth it is ultimately a **business decision**, depending on the cost of retention offers.
 
 ---
 
-# What can be improved
+# SHAP Interpretation
 
-The model isn't perfect, and I'd rather be upfront about that than dress it up. It generates a fair number of false positives, especially for Active clients. A few directions worth exploring:
+SHAP was used to understand which features drive the predictions.
 
-- **Rethinking the prediction window** Right now we want to know what happens to the client in 6 months, this can be kind of a hard task. Shrinking it to something like 4 months could make the target sharper and less ambiguous.
--**Rethinking target creation** Even though the rules for the target i created seem reasonable to me, they are not perfect and i notice target itself is kind of ambigous now, an expert in e-commerce field might have taken a look and defined better rules for target creation. 
--**Better quality data** Since the dataset is fully synthetic it may be assumed that given data is just created in such a way that it becomes hard for model to distinguish between different classes because of data nature and possible weirdness. And of course due to its artifficiency the data doesn't depict the real customers behavior.
-- **Features** — honestly, I think the feature set is already pretty complete at this point, covering long-term behavior, recent trends, browsing activity and returns. I don't expect a lot of extra lift from adding more here, however it always could work, and again an expert in this field might give some ideas or notable observations.
-- **More data.** The learning curve for Model A is genuinely ambiguous right now (see notebook markdown for the full reasoning) — there's a dip and recovery pattern that could mean either "it gets worse with more data" or "it's just noisy and will keep improving." Worth testing with more rows before drawing conclusions. That said, since the dataset is synthetic, more rows generated by the same rules probably won't fix data quality issues — it might help a bit, but I wouldn't expect a dramatic jump. If it were a real clients data, the model performance would increase in my opinion.
+## Model A — Active vs Non-Active
 
+The main signals were:
 
+* `succ_orders_per_account_age` ↑ → lower churn risk
+* `account_age_days` ↑ → lower churn risk
+* `shopping_frequency` ↓ → higher churn risk
+* `avg_session_interval` ↑ → higher churn risk
+* `unsuccessful_orders_count` ↑ → higher churn risk
+
+Overall, frequent purchasing and regular activity reduce the predicted risk, while long gaps between sessions and unsuccessful orders increase it.
+
+## Model B — At-Risk vs Churned
+
+The main signals were:
+
+* `avg_session_interval` ↑ → higher churn risk
+* `sessions_90d` ↑ → lower churn risk
+* `shopping_frequency` ↑ → lower churn risk
+* `toys_items_returned` ↑ → higher churn risk
+* `pets_spent` ↑ → lower churn risk
+* `mobile_sessions_count_180` ↑ → lower churn risk
+
+Model B mostly relies on behavioral signals such as session gaps, purchasing frequency, returns and spending rather than static demographic features.
+
+SHAP patterns were also similar between train and test data, which gives some confidence that the models are not simply memorizing the training set.
+
+---
+
+# What could be improved
+
+The model is not perfect, and I prefer to be open about that.
+
+The biggest issue is the number of false positives, especially for Active customers.
+
+Possible improvements:
+
+* **Rework the prediction window.** A shorter window, for example 4 months instead of 6, could produce a clearer target.
+* **Review the target definition.** The current rules are reasonable for this project, but an e-commerce specialist could define a more precise churn event.
+* **Use real customer data.** The dataset is fully synthetic, so its behavior does not fully represent real customers.
+* **Test more data.** The learning curve for Model A is still ambiguous, so more experiments would be useful before drawing conclusions.
+* **Deployment.** The next technical step would be to turn the current pipeline into a reproducible application.
+
+I do not expect a large improvement from simply adding more features, because the current feature set already covers long-term behavior, recent activity, browsing, returns and cancellations.
 
 ---
 
 # Technologies
 
-- Python
-- SQL
-- Pandas
-- scikit-learn
-- Synthetic data generation
-
+* Python
+* SQL
+* Pandas
+* scikit-learn
+* XGBoost
+* SHAP
+* Synthetic data generation
 
 ---
 
 # Project Motivation
 
-This project was created to practice realistic data science workflows:
+This project was created to practice a realistic end-to-end data science workflow:
 
-- transforming raw transactional data into customer-level features,
-- designing leakage-free time-based datasets,
-- translating business problems into machine learning targets,
-- building interpretable customer behavior models.
+* generating synthetic e-commerce data
+* transforming raw transactional data into customer-level features
+* building a leakage-free time-based dataset
+* defining a business-oriented target
+* training and evaluating machine learning models
+* interpreting model predictions
+* turning churn predictions into a retention decision
+
