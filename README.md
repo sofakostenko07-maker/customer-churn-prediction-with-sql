@@ -47,6 +47,7 @@ data/
 notebooks/         - Colab notebook with the full churn prediction pipeline
 SHAP/              - SHAP images for both models on test data
 models/            - joblib models A, B
+norm_params/       - dict with parametrs like LTVQ25, p_churn_cap, LTVQ99 (used in functions)
 README.md
 
 
