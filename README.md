@@ -36,7 +36,7 @@ The projects contains two binary models, connected together to produce a final o
 
 ## Planned improvements for learning purposes
 * Dockerization
-* Deployment: Build a lightweight API using FastAPI/Streamlit.
+* Deployment: build a lightweight Streamlit app for model inference.
 
 * Possible model retraining on window with more data generated continuously (just to practice)
   
