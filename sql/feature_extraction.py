@@ -161,7 +161,6 @@ succ_order_values AS (
 return_cancel AS(
     SELECT 
         ov.customer_id,
-        (ov.orders_count - sov.succ_orders_count) AS return_cancel_orders_count,
         (ov.total_orders_value - sov.total_succ_orders_value) AS return_cancel_orders_values ,
         (ov.total_items_per_customer - sov.total_succ_items_per_customer) AS return_cancel_orders_items
     FROM order_values ov
@@ -268,7 +267,6 @@ succ_order_values_90d AS (
 return_cancel_90d AS(
     SELECT 
         ov90.customer_id,
-        (ov90.orders_count_90d - sov90.succ_orders_count_90d) AS return_cancel_orders_count_90d,
         (ov90.total_orders_value_90d - sov90.total_succ_orders_value_90d) AS return_cancel_orders_values_90d,
         (ov90.total_items_per_customer_90d - sov90.total_succ_items_per_customer_90d) AS return_cancel_orders_items_90d
     FROM order_values_90d ov90
@@ -726,7 +724,6 @@ SELECT
     COALESCE(sov.avg_items_per_order, 0) AS avg_items_per_order,
     COALESCE(sov.total_succ_items_per_customer, 0) AS total_succ_items_per_customer,
 
-    COALESCE(rc.return_cancel_orders_count, 0) AS return_cancel_orders_count,
     COALESCE(rc.return_cancel_orders_values, 0) AS return_cancel_orders_values,
     COALESCE(rc.return_cancel_orders_items, 0) AS return_cancel_orders_items,
 
@@ -739,7 +736,6 @@ SELECT
     COALESCE(sov90.avg_items_per_order_90d, 0) AS avg_items_per_order_90d,
     COALESCE(sov90.total_succ_items_per_customer_90d, 0) AS total_succ_items_per_customer_90d,
 
-    COALESCE(rc90.return_cancel_orders_count_90d, 0) AS return_cancel_orders_count_90d,
     COALESCE(rc90.return_cancel_orders_values_90d, 0) AS return_cancel_orders_values_90d,
     COALESCE(rc90.return_cancel_orders_items_90d, 0) AS return_cancel_orders_items_90d,
 
