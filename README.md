@@ -59,7 +59,7 @@ The projects contains two binary models, connected together to produce a final o
 
 Feature contract, prediction pipeline and other functions are given at the end of Colab notebook. Notebook contains helpful descriptions and outputs, as well as SHAP outputs at the end of the document
 
-**Link to Colab notebook:** *https://colab.research.google.com/drive/1QcxmzQKZ3T3kG6fpJ28zZHwdoL-XV6bb?usp=sharing* 
+**Link to Colab notebook:** *https://colab.research.google.com/drive/1W_3LFGhxg7QJenTq7eAVXpECppVH3CuA?usp=sharing* 
 
 ---
 
