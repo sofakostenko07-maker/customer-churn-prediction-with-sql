@@ -2,6 +2,11 @@ import sqlite3
 import pandas as pd
 import numpy as np
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 FEATURES = [
     "customer_id",
     "account_age_days",
@@ -317,7 +322,9 @@ def prediction_pipeline(df, model_A, model_B, norm_params, churn_coef=0.6, ltv_c
 
 
     return out
-def load_sql_query(path="feature_query.sql"):
+
+def load_sql_query(filename="feature_query.sql"):
+    path = os.path.join(BASE_DIR, filename)
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 

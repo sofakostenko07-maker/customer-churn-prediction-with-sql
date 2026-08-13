@@ -7,21 +7,33 @@ from pipeline import (
     prediction_pipeline
 )
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_A_PATH = os.path.join(BASE_DIR, "model_A.joblib")
+MODEL_B_PATH = os.path.join(BASE_DIR, "model_B.joblib")
+NORM_PARAMS_PATH = os.path.join(BASE_DIR, "normalization_params.joblib")
+PRODUCTS_PATH = os.path.join(BASE_DIR, "products.csv")
+
+
 st.set_page_config(page_title="Churn Prediction", layout="wide")
 st.title("Customer Churn Prediction")
 
 
 @st.cache_resource
 def load_models():
-    model_A = joblib.load("model_A.joblib")
-    model_B = joblib.load("model_B.joblib")
-    norm_params = joblib.load("normalization_params.joblib")
+    model_A = joblib.load(MODEL_A_PATH)
+    model_B = joblib.load(MODEL_B_PATH)
+    norm_params = joblib.load(NORM_PARAMS_PATH)
+
     return model_A, model_B, norm_params
 
 
 @st.cache_data
 def load_products():
-    return pd.read_csv("products.csv")
+    return pd.read_csv(PRODUCTS_PATH)
+
 
 
 model_A, model_B, norm_params = load_models()
