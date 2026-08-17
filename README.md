@@ -31,15 +31,14 @@ The projects contains two binary models, connected together to produce a final o
 - chosen treshold for model A + business proposal using LTV (optional)
 - test set evaluation
 - SHAP analysis and feature importance for both models
+- light web interface for prediction using Streamlit
 
 
 
 ## Planned improvements for learning purposes
-* Dockerization
-* Deployment: build a lightweight Streamlit app for model inference.
-
-* Possible model retraining on window with more data generated continuously (just to practice)
-  
+* Possible **model retraining** on window with more data generated continuously (just to practice)
+* **Application Dockerization:** Package the Streamlit application into a Docker container to ensure environment consistency and platform-independent deployment.
+* **CI/CD Pipeline:** Implement GitHub Actions to automate code linting, testing, and Docker image building upon every push to the `main` branch.
 ---
 
 # Project Structure
@@ -52,14 +51,18 @@ The projects contains two binary models, connected together to produce a final o
       processed/     - feature_matrix, target parquet
     notebooks/         - Colab notebook with the full churn prediction pipeline
     SHAP/              - SHAP images for both models on test data
-    models/            - joblib models A, B
-    norm_params/       - dict with parametrs like LTVQ25, p_churn_cap, LTVQ99 (used in functions)
+    app/               - Folder with models, normalization_params, products.csv for light Web page for prediction
+    CSV to try/        - CSV files to paste on Web page and get the predictions
     README.md
 
 
 Feature contract, prediction pipeline and other functions are given at the end of Colab notebook. Notebook contains helpful descriptions and outputs, as well as SHAP outputs at the end of the document
 
 **Link to Colab notebook:** *https://colab.research.google.com/drive/18mRnmeOcUdkCkwBWRCn4kba4bVVhtktl?usp=sharing* 
+
+**Link to try out prediction model with your data:** *https://customer-churn-prediction-get-prediction.streamlit.app/*
+
+NOTE: you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
 
 ---
 
