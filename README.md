@@ -1,5 +1,3 @@
-# customer-churn-prediction-with-sql
-
 # Customer Churn Prediction with SQL
 
 ## Overview
@@ -59,12 +57,16 @@ The projects contains two binary models, connected together to produce a final o
 
 Feature contract, prediction pipeline and other functions are given at the end of Colab notebook. Notebook contains helpful descriptions and outputs, as well as SHAP outputs at the end of the document
 
-**Link to Colab notebook:** *https://colab.research.google.com/drive/18mRnmeOcUdkCkwBWRCn4kba4bVVhtktl?usp=sharing* 
+---
+## 🔗 Try it out
 
-**Link to try out prediction model with your data:** *https://customer-churn-prediction-get-prediction.streamlit.app/*
-*(kept awake via periodic health-check pings; if it's ever unresponsive, see the Docker instructions below as a fallback)*
+**Colab notebook:** https://colab.research.google.com/drive/18mRnmeOcUdkCkwBWRCn4kba4bVVhtktl?usp=sharing
 
-NOTE: you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
+**Live prediction app:** https://customer-churn-prediction-get-prediction.streamlit.app/
+
+<sub>Kept awake via periodic health-check pings — if it's ever unresponsive, see the Docker fallback instructions below.</sub>
+
+**Note:**    you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
 
 ## Run locally with Docker
 
@@ -76,7 +78,8 @@ docker pull sofiiak07/churn-app:latest
 docker run -p 8501:8501 sofiiak07/churn-app:latest
 \`\`\`
 
-Then open http://localhost:8501 in your browser.
+Then open http://localhost:8501 in your browser
+
 ---
 
 
