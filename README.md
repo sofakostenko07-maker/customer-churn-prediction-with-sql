@@ -34,10 +34,16 @@ The projects contains two binary models, connected together to produce a final o
 
 
 
-## Planned improvements for learning purposes
-* Possible **model retraining** on window with more data generated continuously (just to practice)
-* **Application Dockerization:** Package the Streamlit application into a Docker container to ensure environment consistency and platform-independent deployment.
-* **CI/CD Pipeline:** Implement GitHub Actions to automate code linting, testing, and Docker image building upon every push to the `main` branch.
+## Where this could grow next
+
+This project intentionally stops at a complete, demonstrable pipeline.
+
+**Possible improvements to this repo:**
+- **CI/CD:** GitHub Actions to run linting/tests and rebuild the Docker image automatically on every push to `main`.
+
+**Out of scope here, but a natural next project:**
+- **Model retraining** on a continuously growing dataset (scheduled data generation, drift monitoring)
+
 ---
 
 # Project Structure
