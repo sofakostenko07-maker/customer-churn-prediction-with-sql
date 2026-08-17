@@ -32,6 +32,7 @@ The projects contains two binary models, connected together to produce a final o
 - test set evaluation
 - SHAP analysis and feature importance for both models
 - light web interface for prediction using Streamlit
+- docker image created and pushed to DockerHub
 
 
 
@@ -51,7 +52,7 @@ The projects contains two binary models, connected together to produce a final o
       processed/     - feature_matrix, target parquet
     notebooks/         - Colab notebook with the full churn prediction pipeline
     SHAP/              - SHAP images for both models on test data
-    app/               - Folder with models, normalization_params, products.csv for light Web page for prediction
+    app/               - Folder with models, normalization_params, products.csv for light Web page for prediction, DockerFile
     CSV to try/        - CSV files to paste on Web page and get the predictions
     README.md
 
@@ -64,6 +65,16 @@ Feature contract, prediction pipeline and other functions are given at the end o
 
 NOTE: you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
 
+## Run locally with Docker
+
+If the live Streamlit link is unavailable (e.g. temporarily down or asleep due to inactivity), you can pull and run the app locally with Docker:
+
+\`\`\`
+docker pull sofiiak07/churn-app:latest
+docker run -p 8501:8501 sofiiak07/churn-app:latest
+\`\`\`
+
+Then open http://localhost:8501 in your browser.
 ---
 
 
