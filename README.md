@@ -62,6 +62,7 @@ Feature contract, prediction pipeline and other functions are given at the end o
 **Link to Colab notebook:** *https://colab.research.google.com/drive/18mRnmeOcUdkCkwBWRCn4kba4bVVhtktl?usp=sharing* 
 
 **Link to try out prediction model with your data:** *https://customer-churn-prediction-get-prediction.streamlit.app/*
+*(kept awake via periodic health-check pings; if it's ever unresponsive, see the Docker instructions below as a fallback)*
 
 NOTE: you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
 
