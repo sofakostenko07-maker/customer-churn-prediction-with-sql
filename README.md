@@ -40,6 +40,7 @@ This project intentionally stops at a complete, demonstrable pipeline.
 
 **Possible improvements to this repo:**
 - **CI/CD:** GitHub Actions to run linting/tests and rebuild the Docker image automatically on every push to `main`.
+- **Switching to DuckDB instead of MySQL (more like a project improvement)** for faster feature extraction. It's not that crucial with 100K clients but definitely would make a large difference with more clients.
 
 **Out of scope here, but a natural next project:**
 - **Model retraining** on a continuously growing dataset (scheduled data generation, drift monitoring)
