@@ -1,5 +1,16 @@
 # Customer Churn Prediction with SQL
 
+## **Note:** 
+
+Some changes were recently made to the feature_extraction query *(see commit description in sql/feature_extraction.py for more details)* . It will possibly affect some feature values.
+
+Changes affect `return_cancel_items`, `return_cancel_items_90d` and `return_cancel_total`,
+`return_cancel_total_90d` features. The changes made will likely affect the values **only slightly**. Nevertheless, new light EDA, model retraining on new values and new feature matrix will be provided soon. 
+
+**The following content refers to the previous version of the project.**
+
+---
+
 ## Overview
 
 This project focuses on building a customer churn prediction pipeline for a synthetic multi-category e-commerce platform.
