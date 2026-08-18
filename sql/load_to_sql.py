@@ -32,8 +32,12 @@ def load_csv(table_name, csv_path):
 def main():
     print("Uploading to MySQL...\n")
 
-    load_csv("order_items", "data/order_items.csv")
-
+    load_csv("order_items", "data/raw/order_items.csv")
+    load_csv("customers", "data/raw/customers.csv")
+    load_csv("products", "data/raw/products.csv")
+    load_csv("orders", "data/raw/orders.csv")
+    load_csv("order_items", "data/raw/order_items.csv")
+    load_csv("sessions", "data/raw/sessions.csv")
 
     print("\nALL DONE")
 
