@@ -70,13 +70,13 @@ Feature contract, prediction pipeline and other functions are given at the end o
 
 **Live prediction app:** https://customer-churn-prediction-get-prediction.streamlit.app/
 
-<sub>Kept awake via periodic health-check pings — if it's ever unresponsive, see the Docker fallback instructions below.</sub>
+<sub>Click wake-up app button on the page and wait for a while until the page is visible and ready to use. If it ever doesn't work run the app via Docker locally (see the instrcution below)</sub>
 
 **Note:**    you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
 
 ## Run locally with Docker
 
-If the live Streamlit link is unavailable (e.g. temporarily down or asleep due to inactivity), you can pull and run the app locally with Docker:
+If the live Streamlit link is unavailable and the page fails to "wake up", you can pull and run the app locally with Docker:
 
 \`\`\`
 docker pull sofiiak07/churn-app:latest
