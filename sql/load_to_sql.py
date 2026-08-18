@@ -16,10 +16,18 @@ def load_csv(table_name, csv_path):
     df.columns = [c.lower() for c in df.columns]
 
     try:
-        df.to_sql(table_name, engine, if_exists="append", index=False)
+        df.to_sql(
+            table_name,
+            engine,
+            if_exists="append",
+            index=False,
+            method="multi",
+            chunksize=5000
+        )
         print(f"Successfully dumped to {table_name}")
     except Exception as e:
         print(f"Error at {table_name}: {e}")
+
 
 def main():
     print("Uploading to MySQL...\n")
