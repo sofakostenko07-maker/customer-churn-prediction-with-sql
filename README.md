@@ -34,10 +34,17 @@ The projects contains two binary models, connected together to produce a final o
 
 
 
-## Planned improvements for learning purposes
-* Possible **model retraining** on window with more data generated continuously (just to practice)
-* **Application Dockerization:** Package the Streamlit application into a Docker container to ensure environment consistency and platform-independent deployment.
-* **CI/CD Pipeline:** Implement GitHub Actions to automate code linting, testing, and Docker image building upon every push to the `main` branch.
+## Where this could grow next
+
+This project intentionally stops at a complete, demonstrable pipeline.
+
+**Possible improvements to this repo:**
+- **CI/CD:** GitHub Actions to run linting/tests and rebuild the Docker image automatically on every push to `main`.
+- **Switching to DuckDB instead of MySQL (more like a project improvement)** for faster feature extraction. It's not that crucial with 100K clients but definitely would make a large difference with more clients.
+
+**Out of scope here, but a natural next project:**
+- **Model retraining** on a continuously growing dataset (scheduled data generation, drift monitoring)
+
 ---
 
 # Project Structure
@@ -64,13 +71,13 @@ Feature contract, prediction pipeline and other functions are given at the end o
 
 **Live prediction app:** https://customer-churn-prediction-get-prediction.streamlit.app/
 
-<sub>Kept awake via periodic health-check pings — if it's ever unresponsive, see the Docker fallback instructions below.</sub>
+<sub>Click wake-up app button on the page and wait for a while until the page is visible and ready to use. If it ever doesn't work run the app via Docker locally (see the instrcution below)</sub>
 
 **Note:**    you can either provide data manually in special tables or try out CSV files with random customer data given in CSV to try/ folder
 
 ## Run locally with Docker
 
-If the live Streamlit link is unavailable (e.g. temporarily down or asleep due to inactivity), you can pull and run the app locally with Docker:
+If the live Streamlit link is unavailable and the page fails to "wake up", you can pull and run the app locally with Docker:
 
 \`\`\`
 docker pull sofiiak07/churn-app:latest
