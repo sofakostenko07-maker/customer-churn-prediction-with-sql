@@ -1,5 +1,5 @@
-import pandas as pd
-from sqlalchemy import create_engine, text
+from datetime import date
+import os
 import duckdb
 
 USER = "..."
@@ -7,44 +7,61 @@ PASSWORD = "..."
 HOST = "localhost"
 DB = "churn_project"
 
-engine = create_engine(f"mysql+pymysql://{USER}:{PASSWORD}@{HOST}/{DB}")
+CUT_DATE = date(2026, 1, 1)
 
-customers = pd.read_sql("SELECT * FROM customers", engine)
-orders = pd.read_sql("SELECT * FROM orders", engine)
-order_items = pd.read_sql("SELECT * FROM order_items", engine)
-sessions = pd.read_sql("SELECT * FROM sessions", engine)
 
-customers.to_parquet("customers.parquet")
-orders.to_parquet("orders.parquet")
-order_items.to_parquet("order_items.parquet")
-sessions.to_parquet("sessions.parquet")
+DB_PATH = "staging.duckdb"
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
 
-query = """
+con = duckdb.connect(DB_PATH)
 
-WITH 
+con.execute("PRAGMA memory_limit='6GB'")
+con.execute("PRAGMA threads=4")
 
-customers_filtered AS (
+con.execute("INSTALL mysql")
+con.execute("LOAD mysql")
+
+con.execute(f"""
+    ATTACH 'host={HOST} user={USER} password={PASSWORD} database={DB}'
+    AS mysql_db (TYPE mysql)
+""")
+
+con.execute("CREATE TABLE customers AS SELECT * FROM mysql_db.customers")
+con.execute("CREATE TABLE orders AS SELECT * FROM mysql_db.orders")
+con.execute("CREATE TABLE order_items AS SELECT * FROM mysql_db.order_items")
+con.execute("CREATE TABLE sessions AS SELECT * FROM mysql_db.sessions")
+con.execute("CREATE TABLE products AS SELECT * FROM mysql_db.products")
+
+con.execute("DETACH mysql_db")
+
+con.execute("""
+    CREATE TABLE customers_filtered AS
     SELECT *
     FROM customers
-    WHERE registration_date < ?
-),
+    WHERE registration_date < ?::DATE
+""", [CUT_DATE])
 
-orders_filtered AS (
+con.execute("""
+    CREATE TABLE orders_filtered AS
     SELECT o.*
     FROM orders o
     JOIN customers_filtered USING(customer_id)
-    WHERE o.order_date < ?
-),
+    WHERE o.order_date < ?::DATE
+""", [CUT_DATE])
 
-sessions_filtered AS (
+
+con.execute("""
+    CREATE TABLE sessions_filtered AS
     SELECT s.*
     FROM sessions s
     JOIN customers_filtered USING(customer_id)
-    WHERE s.session_date < ?
-),
+    WHERE s.session_date < ?::DATE
+""", [CUT_DATE])
 
 
-order_item_level AS (
+con.execute("""
+    CREATE TABLE order_item_level AS
     SELECT
         oi.order_item_id,
         oi.product_id,
@@ -55,22 +72,30 @@ order_item_level AS (
         ofl.order_date,
 
         CASE
-            WHEN ofl.status_date >= ? THEN 'Completed'
+            WHEN ofl.status_date >= ?::DATE THEN 'Completed'
             ELSE ofl.status
         END AS status,
 
         CASE
-            WHEN ofl.status_date >= ? THEN ofl.order_date
+            WHEN ofl.status_date >= ?::DATE THEN ofl.order_date
             ELSE ofl.status_date
         END AS status_date,
 
         CASE
-            WHEN ofl.status_date > ? THEN 0
+            WHEN ofl.status_date > ?::DATE THEN 0
             ELSE COALESCE(oi.returned, 0)
         END AS returned
     FROM orders_filtered ofl
     JOIN order_items oi USING(order_id)
-),
+""", [CUT_DATE, CUT_DATE, CUT_DATE])
+
+con.execute("CREATE INDEX idx_oil_customer ON order_item_level(customer_id)")
+con.execute("CREATE INDEX idx_oil_order ON order_item_level(order_id)")
+
+
+query = """
+
+WITH
 
 successful_orders_for_intervals AS (
     SELECT DISTINCT
@@ -91,15 +116,16 @@ successful_orders_for_intervals AS (
                 )
             )
         )
-        AND oil.order_date < ? - INTERVAL '90 DAY'
+        AND oil.order_date < ?::DATE - INTERVAL '90 DAY'
 ),
 
 intervals AS (
     SELECT
         customer_id,
         DATEDIFF(
-            order_date,
-            LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)
+            'day',
+            LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date),
+            order_date
         ) AS interval_days
     FROM successful_orders_for_intervals
 ),
@@ -125,7 +151,7 @@ order_values AS (
             SUM(oil.price_at_purchase * oil.quantity) AS order_total,
             SUM(oil.quantity) AS items_bought
         FROM order_item_level oil
-        WHERE oil.order_date < ? - INTERVAL '90 DAY'
+        WHERE oil.order_date < ?::DATE - INTERVAL '90 DAY'
         GROUP BY oil.order_id, oil.customer_id
     ) t
     GROUP BY t.customer_id
@@ -148,7 +174,7 @@ succ_order_values AS (
             SUM(CASE WHEN oil.returned = 0 THEN oil.quantity ELSE 0 END) AS items_bought
         FROM order_item_level oil
         WHERE oil.status IN ('Completed', 'Returned')
-          AND oil.order_date < ? - INTERVAL '90 DAY'
+          AND oil.order_date < ?::DATE - INTERVAL '90 DAY'
         GROUP BY oil.order_id, oil.customer_id
         HAVING
             SUM(CASE WHEN oil.returned = 0 THEN 1 ELSE 0 END) > 0
@@ -175,15 +201,16 @@ successful_orders_for_intervals_90d AS (
                 )
             )
         )
-        AND oil.order_date >= ? - INTERVAL 90 DAY
+        AND oil.order_date >= ?::DATE - INTERVAL '90 DAY'
 ),
 
 intervals_90d AS (
     SELECT
         customer_id,
         DATEDIFF(
-            order_date,
-            LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)
+            'day',
+            LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date),
+            order_date
         ) AS interval_days
     FROM successful_orders_for_intervals_90d
 ),
@@ -209,7 +236,7 @@ order_values_90d AS (
             SUM(oil.price_at_purchase * oil.quantity) AS order_total,
             SUM(oil.quantity) AS items_bought
         FROM order_item_level oil
-        WHERE oil.order_date >= ? - INTERVAL '90 DAY'
+        WHERE oil.order_date >= ?::DATE - INTERVAL '90 DAY'
         GROUP BY oil.order_id, oil.customer_id
     ) t
     GROUP BY t.customer_id
@@ -233,7 +260,7 @@ succ_order_values_90d AS (
         FROM order_item_level oil
         WHERE 
             oil.status IN ('Completed', 'Returned')
-          AND oil.order_date >= ? - INTERVAL '90 DAY' 
+          AND oil.order_date >= ?::DATE - INTERVAL '90 DAY' 
         GROUP BY oil.order_id, oil.customer_id
         HAVING
             SUM(CASE WHEN oil.returned = 0 THEN 1 ELSE 0 END) > 0
@@ -242,11 +269,10 @@ succ_order_values_90d AS (
     GROUP BY t.customer_id
 ),
 
-
 account_age AS (
     SELECT
         customer_id,
-        DATEDIFF(?, registration_date) AS account_age_days
+        DATEDIFF('day', registration_date, ?::DATE) AS account_age_days
     FROM customers_filtered
 ),
 
@@ -254,7 +280,7 @@ last_successful_order AS (
     SELECT
         ranked.customer_id,
         ranked.order_id,
-        DATEDIFF(?, ranked.order_date) AS last_successful_date
+        DATEDIFF('day', ranked.order_date, ?::DATE) AS last_successful_date
     FROM (
         SELECT
             t.customer_id,
@@ -298,7 +324,6 @@ last_successful_stats AS (
     JOIN order_item_level oil
         ON oil.customer_id = lso.customer_id
         AND oil.order_id = lso.order_id
-
     GROUP BY lso.customer_id
 ),
 
@@ -338,7 +363,7 @@ last_return_order AS (
     SELECT
         t.customer_id,
         t.order_id,
-        DATEDIFF(?, t.return_date) AS days_from_last_return,
+        DATEDIFF('day', t.return_date, ?::DATE) AS days_from_last_return,
         t.full_return_total
     FROM (
         SELECT
@@ -371,7 +396,7 @@ last_cancel_order AS (
     SELECT
         ranked.customer_id,
         ranked.order_id,
-        DATEDIFF(?, ranked.status_date) AS days_from_last_cancel
+        DATEDIFF('day', ranked.status_date, ?::DATE) AS days_from_last_cancel
     FROM (
         SELECT
             t.customer_id,
@@ -431,8 +456,6 @@ last3_order_ids AS (
     WHERE ranked.rn <= 3
 ),
 
-
-
 last3_succ_orders AS (
     SELECT ranked.*
     FROM (
@@ -473,14 +496,15 @@ last3_succ_orders_help_table AS (
         SUM(oil.quantity*oil.price_at_purchase) AS total_value,
         SUM(oil.quantity) AS total_items,
         DATEDIFF(
-        l3so.order_date,
-        LAG(l3so.order_date) OVER (PARTITION BY l3so.customer_id ORDER BY l3so.order_date, l3so.order_id)
+        'day',
+        LAG(l3so.order_date) OVER (PARTITION BY l3so.customer_id ORDER BY l3so.order_date, l3so.order_id),
+        l3so.order_date
 
         ) AS interval_days
 
     FROM last3_succ_orders l3so
-    JOIN order_item_level USING(order_id)
-    GROUP BY l3so.customer_id, l3so.order_id
+    JOIN order_item_level oil USING(order_id)
+    GROUP BY l3so.customer_id, l3so.order_id, l3so.order_date
 ),
 
 last3_succ_orders_stats AS (
@@ -520,7 +544,7 @@ last3_orders_help_table AS (
     JOIN order_item_level oil
     ON l3.customer_id = oil.customer_id
     AND l3.order_id = oil.order_id
-    GROUP BY customer_id
+    GROUP BY l3.customer_id
 ),
 
 last3_orders_stats AS (
@@ -591,7 +615,6 @@ category_returns_counts AS (
     GROUP BY oil.customer_id
 ),
 
-
 discount_stats AS (
     SELECT
         oil.customer_id,
@@ -612,14 +635,14 @@ last_session AS (
             ORDER BY session_date DESC
         ) AS rn
     FROM sessions_filtered
-    WHERE session_date >= ? - INTERVAL '180 DAY'
-      AND session_date < ?
+    WHERE session_date >= ?::DATE - INTERVAL '180 DAY'
+      AND session_date < ?::DATE
 ),
 
 last_session_stats AS (
     SELECT
         customer_id,
-        DATEDIFF(?, session_date) AS days_from_last_session,
+        DATEDIFF('day', session_date, ?::DATE) AS days_from_last_session,
         pages_viewed AS last_session_pages_viewed
     FROM last_session
     WHERE rn = 1
@@ -630,8 +653,8 @@ successful_orders_180 AS (
         customer_id,
         COUNT(*) AS successful_orders_180
     FROM order_item_level oil
-    WHERE oil.order_date >= ? - INTERVAL '180 DAY'
-    AND oil.order_date < ?
+    WHERE oil.order_date >= ?::DATE - INTERVAL '180 DAY'
+    AND oil.order_date < ?::DATE
       AND (
             oil.status = 'Completed'
             OR (
@@ -656,8 +679,8 @@ sessions_180_stats AS (
         SUM(CASE WHEN sfl.device = 'mobile' THEN 1 ELSE 0 END) AS mobile_sessions_count_180,
         SUM(CASE WHEN sfl.device = 'desktop' THEN 1 ELSE 0 END) AS desktop_sessions_count_180
     FROM sessions_filtered sfl
-    WHERE sfl.session_date >= ? - INTERVAL '180 days' 
-                           AND sfl.session_date < ?
+    WHERE sfl.session_date >= ?::DATE - INTERVAL '180 days' 
+                           AND sfl.session_date < ?::DATE
     GROUP BY sfl.customer_id
 ),
 
@@ -675,8 +698,8 @@ recent_sessions_90 AS (
         COUNT(*) AS sessions_90d,
         AVG(pages_viewed) AS avg_pages_90d
     FROM sessions_filtered
-    WHERE session_date >= ? - INTERVAL '90 days' 
-                       AND session_date < ?
+    WHERE session_date >= ?::DATE - INTERVAL '90 days' 
+                       AND session_date < ?::DATE
     GROUP BY customer_id
 ),
 
@@ -688,8 +711,9 @@ session_intervals AS (
         SELECT
             customer_id,
             DATEDIFF(
-                session_date,
-                LAG(session_date) OVER (PARTITION BY customer_id ORDER BY session_date)
+                'day',
+                LAG(session_date) OVER (PARTITION BY customer_id ORDER BY session_date),
+                session_date
             ) AS interval_days
         FROM sessions_filtered
     ) t
@@ -697,15 +721,14 @@ session_intervals AS (
     GROUP BY customer_id
 )
 
-
 SELECT
     cfl.customer_id,
 
     COALESCE(aa.account_age_days, 1) AS account_age_days,
     cfl.birth_date,
     cfl.gender,
-    cfl.city,
     cfl.country,
+    cfl.city,
 
     COALESCE(1/NULLIF(ofq.avg_interval, 0), 0) AS shopping_frequency,
     COALESCE(ov.orders_count - sov.succ_orders_count, 0) AS unsuccessful_orders_count,
@@ -716,8 +739,8 @@ SELECT
     COALESCE(sov.avg_items_per_order, 0) AS avg_items_per_order,
     COALESCE(sov.total_succ_items_per_customer, 0) AS total_succ_items_per_customer,
 
-    COALESCE(ov.total_orders_value - sov.total_succ_orders_value, 0) AS return_cancel_orders_values ,
-    COALESCE(ov.total_items_per_customer - sov.total_succ_items_per_customer, 0) AS return_cancel_orders_items,
+    (COALESCE(ov.total_orders_value, 0) - COALESCE(sov.total_succ_orders_value, 0)) AS return_cancel_orders_values,
+    (COALESCE(ov.total_items_per_customer, 0) - COALESCE(sov.total_succ_items_per_customer, 0)) AS return_cancel_orders_items,
 
     COALESCE(1/NULLIF(of90.avg_interval_90d, 0), 0) AS shopping_frequency_90d,
     COALESCE(ov90.orders_count_90d - sov90.succ_orders_count_90d, 0) AS unsuccessful_orders_count_90d,
@@ -728,8 +751,8 @@ SELECT
     COALESCE(sov90.avg_items_per_order_90d, 0) AS avg_items_per_order_90d,
     COALESCE(sov90.total_succ_items_per_customer_90d, 0) AS total_succ_items_per_customer_90d,
 
-    COALESCE(ov90.total_orders_value_90d - sov90.total_succ_orders_value_90d, 0) AS return_cancel_orders_values_90d,
-    COALESCE(ov90.total_items_per_customer_90d - sov90.total_succ_items_per_customer_90d, 0) AS return_cancel_orders_items_90d,
+    (COALESCE(ov90.total_orders_value_90d, 0) - COALESCE(sov90.total_succ_orders_value_90d, 0)) AS return_cancel_orders_values_90d,
+    (COALESCE(ov90.total_items_per_customer_90d, 0) - COALESCE(sov90.total_succ_items_per_customer_90d, 0)) AS return_cancel_orders_items_90d,
 
     COALESCE(lss.last_suc_order_interval, 0) AS last_suc_order_interval,
     COALESCE(lss.last_succ_kept_order_total, 0) AS last_succ_kept_order_total,
@@ -836,35 +859,14 @@ LEFT JOIN sessions_180_stats ss180 USING(customer_id)
 LEFT JOIN recent_sessions_90 ss90 USING(customer_id)
 LEFT JOIN last_session_stats lses USING(customer_id)
 LEFT JOIN sessions_to_succ_orders_ratio_180 ss180_r USING(customer_id)
-LEFT JOIN session_intervals si USING(customer_id);
+LEFT JOIN session_intervals si USING(customer_id)
+ORDER BY cfl.customer_id;
 
 """
 
-con = duckdb.connect()
-
-con.execute("CREATE TABLE customers AS SELECT * FROM 'customers.parquet'")
-con.execute("CREATE TABLE orders AS SELECT * FROM 'orders.parquet'")
-con.execute("CREATE TABLE order_items AS SELECT * FROM 'order_items.parquet'")
-con.execute("CREATE TABLE sessions AS SELECT * FROM 'sessions.parquet'")
-
-features = con.execute(query, ['2026-01-01']).df()
+n_placeholders = query.count("?")
+features = con.execute(query, [CUT_DATE] * n_placeholders).df()
 
 features.to_csv("feature_matrix.csv", index=False)
 
 print("ALL DONE! CSV saved as feature_matrix.csv")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
