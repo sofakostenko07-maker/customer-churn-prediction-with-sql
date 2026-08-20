@@ -1,13 +1,5 @@
 # Customer Churn Prediction with SQL
 
-## **Note:** 
-
-Some changes were recently made to the feature_extraction query *(see commit description in sql/feature_extraction.py for more details)* . It will possibly affect some feature values.
-
-Changes affect `return_cancel_items`, `return_cancel_items_90d` and `return_cancel_total`,
-`return_cancel_total_90d` features. The changes made will likely affect the values **only slightly**. Nevertheless, new light EDA, model retraining on new values and new feature matrix will be provided soon. 
-
-**The following content refers to the previous version of the project.**
 
 ---
 
@@ -414,31 +406,31 @@ Two versions were compared:
 1. **Plain threshold:** `p ≥ 0.35` → Non-Active
 2. **Threshold + LTV rule:** Low-Risk / Low-Value customers are treated as Active
 
-## 1. Plain threshold
-
-|                       | Predicted Active | Predicted Non-Active |
-| --------------------- | ---------------: | -------------------: |
-| **Actual Active**     |    4,374 (33.6%) |        8,634 (66.4%) |
-| **Actual Non-Active** |       217 (4.2%) |        4,959 (95.8%) |
-
-This gives:
-
-* **Non-Active recall: 95.8%**
-* **Non-Active precision: 36.5%**
-
-The model catches most of the actually Non-Active customers, but at the cost of a large number of false positives among Active customers.
-
-## 2. Threshold + LTV rule
-
-|                       | Predicted Active | Predicted Non-Active |
-| --------------------- | ---------------: | -------------------: |
-| **Actual Active**     |    4,631 (35.8%) |        8,377 (64.2%) |
-| **Actual Non-Active** |       287 (5.5%) |        4,889 (94.5%) |
-
-This version:
-
-* reduces false positives from **8,634 → 8,377**
-* slightly reduces recall from **95.8% → 94.5%**
+## 1. Plain threshold 
+ 
+|                       | Predicted Active | Predicted Non-Active | 
+| --------------------- | ---------------: | -------------------: | 
+| **Actual Active**     |    4,374 (33.6%) |        8,634 (66.4%) | 
+| **Actual Non-Active** |       217 (4.2%) |        4,959 (95.8%) | 
+ 
+This gives: 
+ 
+* **Non-Active recall: 95.8%** 
+* **Non-Active precision: 36.5%** 
+ 
+The model catches most of the actually Non-Active customers, but at the cost of a large number of false positives among Active customers. 
+ 
+## 2. Threshold + LTV rule 
+ 
+|                       | Predicted Active | Predicted Non-Active | 
+| --------------------- | ---------------: | -------------------: | 
+| **Actual Active**     |    4,601 (35.4%) |        8,407 (64.6%) | 
+| **Actual Non-Active** |       291 (5.6%) |        4,885 (94.4%) | 
+ 
+This version: 
+ 
+* reduces false positives from **8,634 → 8,407** 
+* slightly reduces recall from **95.8% → 94.4%**
 
 So the LTV rule gives a small trade-off: fewer Active customers are incorrectly targeted, while slightly more Non-Active customers are missed.
 
