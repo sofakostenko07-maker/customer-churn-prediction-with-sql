@@ -70,7 +70,7 @@ Feature contract, prediction pipeline and other functions are given at the end o
 ---
 ## 🔗 Try it out
 
-**Colab notebook:** https://colab.research.google.com/drive/18mRnmeOcUdkCkwBWRCn4kba4bVVhtktl?usp=sharing
+**Colab notebook:** https://colab.research.google.com/drive/1IkphR8N9QSwcjDTuCLYaVUNcCrsK7rZL?usp=sharing
 
 **Live prediction app:** https://customer-churn-prediction-get-prediction.streamlit.app/
 
