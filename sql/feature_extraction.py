@@ -170,14 +170,13 @@ succ_order_values AS (
         SELECT
             oil.customer_id,
             oil.order_id,
-            SUM(CASE WHEN oil.returned = 0 THEN oil.price_at_purchase * oil.quantity ELSE 0 END) AS order_total,
-            SUM(CASE WHEN oil.returned = 0 THEN oil.quantity ELSE 0 END) AS items_bought
+            SUM(oil.price_at_purchase * oil.quantity) AS order_total,
+            SUM(oil.quantity) AS items_bought
         FROM order_item_level oil
-        WHERE oil.status IN ('Completed', 'Returned')
+        WHERE oil.returned = 0
+          AND oil.status IN ('Completed', 'Returned')
           AND oil.order_date < ?::DATE - INTERVAL '90 DAY'
         GROUP BY oil.order_id, oil.customer_id
-        HAVING
-            SUM(CASE WHEN oil.returned = 0 THEN 1 ELSE 0 END) > 0
     ) t
     GROUP BY t.customer_id
 ),
@@ -255,15 +254,13 @@ succ_order_values_90d AS (
         SELECT
             oil.customer_id,
             oil.order_id,
-            SUM(CASE WHEN oil.returned = 0 THEN oil.price_at_purchase * oil.quantity ELSE 0 END) AS order_total,
-            SUM(CASE WHEN oil.returned = 0 THEN oil.quantity ELSE 0 END) AS items_bought
+            SUM(oil.price_at_purchase * oil.quantity) AS order_total,
+            SUM(oil.quantity) AS items_bought
         FROM order_item_level oil
         WHERE 
             oil.status IN ('Completed', 'Returned')
           AND oil.order_date >= ?::DATE - INTERVAL '90 DAY' 
         GROUP BY oil.order_id, oil.customer_id
-        HAVING
-            SUM(CASE WHEN oil.returned = 0 THEN 1 ELSE 0 END) > 0
 
     ) t
     GROUP BY t.customer_id
